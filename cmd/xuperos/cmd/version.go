@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/xuperchain/xuperos/common/version"
 )
 
 // 通过编译参数设置
@@ -22,16 +23,12 @@ func GetVersionCmd() *versionCmd {
 
 	versionCmdIns.cmd = &cobra.Command{
 		Use:     "version",
-		Short:   "View process version information.",
-		Example: "xchain version",
+		Short:   "view process version information.",
+		Example: "xuperos version",
 		Run: func(cmd *cobra.Command, args []string) {
-			Version()
+			version.Version()
 		},
 	}
 
 	return versionCmdIns
-}
-
-func Version() {
-	fmt.Printf("%s-%s %s\n", buildVersion, commitHash, buildDate)
 }

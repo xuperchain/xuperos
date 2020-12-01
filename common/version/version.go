@@ -7,3 +7,7 @@ var (
 	BuildTime = ""
 	CommitID  = ""
 )
+
+func Version() {
+	fmt.Printf("%s-%s %s\n", Version, CommitID, BuildTime)
+}
