@@ -1,16 +1,20 @@
 package context
 
 import (
+	"context"
 	"fmt"
+	"time"
 
-	"github.com/xuperchain/xupercore/kernel/engines/xuperos/def"
+	def "github.com/xuperchain/xupercore/kernel/engines/xuperos/commom"
 	"github.com/xuperchain/xupercore/lib/logs"
 	"github.com/xuperchain/xupercore/lib/timer"
-	"github.com/xuperchain/xupercore/server/common"
+
+	common "github.com/xuperchain/xuperos/common/def"
 )
 
 // 请求级别上下文
 type ReqCtx interface {
+	context.Context
 	GetEngine() def.Engine
 	GetLog() logs.Logger
 	GetTimer() *timer.XTimer
@@ -44,6 +48,19 @@ func NewReqCtx(engine def.Engine, reqId, clientIp string) (ReqCtx, error) {
 	return ctx, nil
 }
 
+func ContextWithReqCtx(ctx context.Context, reqCtx ReqCtx) context.Context {
+	return context.WithValue(ctx, "reqCtx", reqCtx)
+}
+
+func ReqCtxFromContext(ctx context.Context) ReqCtx {
+	val := ctx.Value("reqCtx")
+	if reqCtx, ok := val.(ReqCtx); ok {
+		return reqCtx
+	}
+	return nil
+}
+
+
 func (t *ReqCtxImpl) GetEngine() def.Engine {
 	return t.engine
 }
@@ -58,4 +75,20 @@ func (t *ReqCtxImpl) GetTimer() *timer.XTimer {
 
 func (t *ReqCtxImpl) GetClientIp() string {
 	return t.clientIp
+}
+
+func (t *ReqCtxImpl) Deadline() (deadline time.Time, ok bool) {
+	return
+}
+
+func (t *ReqCtxImpl) Done() <-chan struct{} {
+	return nil
+}
+
+func (t *ReqCtxImpl) Err() error {
+	return nil
+}
+
+func (t *ReqCtxImpl) Value(key interface{}) interface{} {
+	return nil
 }

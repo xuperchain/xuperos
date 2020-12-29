@@ -25,6 +25,8 @@ type ServConf struct {
 	WriteBufSize       int   `yaml:"writeBufSize,omitempty"`
 	InitWindowSize     int32 `yaml:"initWindowSize,omitempty"`
 	InitConnWindowSize int32 `yaml:"initConnWindowSize,omitempty"`
+	TlsPath 		   string`yaml:"tlsPath,omitempty"`
+	TlsServerName 	   string`yaml:"tlsServerName,omitempty"`
 }
 
 func LoadServConf(cfgFile string) (*ServConf, error) {
@@ -54,6 +56,8 @@ func GetDefServConf() *ServConf {
 		WriteBufSize:       32 << 10,
 		InitWindowSize:     128 << 10,
 		InitConnWindowSize: 64 << 10,
+		TlsPath: 			"tls",
+		TlsServerName: 		"localhost",
 	}
 }
 

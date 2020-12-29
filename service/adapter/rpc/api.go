@@ -4,90 +4,259 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"reflect"
 	"strconv"
-	"strings"
 
-	"github.com/golang/protobuf/proto"
-
+	ledger "github.com/xuperchain/xupercore/bcs/ledger/xledger/pb"
+	"github.com/xuperchain/xupercore/kernel/engines/xuperos/reader"
+	"github.com/xuperchain/xupercore/kernel/network/p2p"
+	"github.com/xuperchain/xupercore/protos"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/reflection"
 
-	"github.com/xuperchain/xuperchain/core/common"
-	"github.com/xuperchain/xuperchain/core/consensus"
-	xchaincore "github.com/xuperchain/xuperchain/core/core"
-	"github.com/xuperchain/xuperchain/core/global"
-	p2p_base "github.com/xuperchain/xuperchain/core/p2p/base"
-	xuper_p2p "github.com/xuperchain/xuperchain/core/p2p/pb"
-	"github.com/xuperchain/xuperchain/core/pb"
-	"github.com/xuperchain/xuperchain/core/server/xendorser"
+	rctx "github.com/xuperchain/xuperos/common/context"
+	"github.com/xuperchain/xuperos/common/pb"
 )
 
 // PostTx post transaction to blockchain network
 func (s *Server) PostTx(ctx context.Context, in *pb.TxStatus) (*pb.CommonReply, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.CommonReply{Header: defRespHeader(in.Header)}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
 
-	out, needRepost, err := s.mg.ProcessTx(in)
-	if needRepost {
-		go func() {
-			msgInfo, _ := proto.Marshal(in)
-			msg, _ := p2p_base.NewXuperMessage(p2p_base.XuperMsgVersion1, in.GetBcname(), in.GetHeader().GetLogid(), xuper_p2p.XuperMessage_POSTTX, msgInfo, xuper_p2p.XuperMessage_NONE)
-			opts := []p2p_base.MessageOption{
-				p2p_base.WithFilters([]p2p_base.FilterStrategy{p2p_base.DefaultStrategy}),
-				p2p_base.WithBcName(in.GetBcname()),
-				p2p_base.WithCompress(s.mg.GetXchainmgConfig().EnableCompress),
-			}
-			s.mg.P2pSvr.SendMessage(context.Background(), msg, opts...)
-		}()
+	err = chain.SubmitTx(reqCtx, in.Tx)
+	out.Header.Error = ErrorEnum(err)
+	if out.Header.Error == pb.XChainErrorEnum_SUCCESS {
+		opts := []p2p.MessageOption {
+			p2p.WithLogId(in.GetHeader().GetLogid()),
+			p2p.WithBCName(in.GetBcname()),
+		}
+		msg := p2p.NewMessage(protos.XuperMessage_POSTTX, in, opts...)
+
+		engCtx := s.engine.Context()
+		go engCtx.Net.SendMessage(reqCtx, msg)
 	}
+
 	return out, err
+}
+
+// PreExec smart contract preExec process
+func (s *Server) PreExec(ctx context.Context, in *pb.InvokeRPCRequest) (*pb.InvokeRPCResponse, error) {
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.InvokeRPCResponse{Header: defRespHeader(in.Header)}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
+	}
+
+	response, err := chain.PreExec(reqCtx, in.GetRequests())
+	if err != nil {
+		reqCtx.GetLog().Warn("PreExec error", "error", err)
+		return nil, err
+	}
+
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	for _, txInput := range response.GetInputs() {
+		if utxoReader.QueryTxFromForbidden(txInput.GetRefTxid()) {
+			return out, errors.New("RefTxid has been forbidden")
+		}
+	}
+
+	out.Response = response
+	return out, nil
+}
+
+// PreExecWithSelectUTXO preExec + selectUtxo
+func (s *Server) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSelectUTXORequest) (*pb.PreExecWithSelectUTXOResponse, error) {
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.PreExecWithSelectUTXOResponse{Header: defRespHeader(in.Header), Bcname: in.GetBcname()}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
+	}
+
+	// PreExec
+	preExecRequest := in.GetRequest()
+	fee := int64(0)
+	if preExecRequest != nil {
+		preExecRequest.Header = in.Header
+		invokeRPCResponse, err := s.PreExec(ctx, preExecRequest)
+		if err != nil {
+			return nil, err
+		}
+		invokeResponse := invokeRPCResponse.GetResponse()
+		out.Response = invokeResponse
+		fee = out.Response.GetGasUsed()
+	}
+
+	// SelectUTXO
+	totalAmount := in.GetTotalAmount() + fee
+	if totalAmount > 0 {
+		utxoInput := &pb.UtxoRequest {
+			Bcname:    in.GetBcname(),
+			Address:   in.GetAddress(),
+			TotalNeed: strconv.FormatInt(totalAmount, 10),
+			Publickey: in.GetSignInfo().GetPublicKey(),
+			UserSign:  in.GetSignInfo().GetSign(),
+			NeedLock:  in.GetNeedLock(),
+		}
+
+		if ok := validUtxoAccess(utxoInput, chain.Context().Crypto, in.GetTotalAmount()); !ok {
+			return nil, errors.New("validUtxoAccess failed")
+		}
+
+		utxoOutput, err := s.SelectUTXO(ctx, utxoInput)
+		if err != nil {
+			return nil, err
+		}
+
+		out.UtxoOutput = &ledger.UtxoOutput{
+			UtxoList: utxoOutput.UtxoList,
+			TotalSelected: utxoOutput.TotalSelected,
+		}
+	}
+
+	return out, nil
+}
+
+// SelectUTXO select utxo inputs depending on amount
+func (s *Server) SelectUTXO(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.UtxoResponse{Header: defRespHeader(in.Header)}
+
+	totalNeed, ok := new(big.Int).SetString(in.TotalNeed, 10)
+	if !ok {
+		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
+		return out, nil
+	}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("failed to select utxo, bcname not exists", "bcName", in.GetBcname())
+		return out, err
+	}
+
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	utxos, _, totalSelected, err := utxoReader.SelectUtxo(in.GetAddress(), totalNeed, in.GetNeedLock(), false)
+	if err != nil {
+		out.Header.Error = ErrorEnum(err)
+		reqCtx.GetLog().Warn("failed to select utxo", "error", err)
+		return out, err
+	}
+
+	utxoList := make([]*ledger.Utxo, 0, len(utxos))
+	for _, v := range utxos {
+		utxo := &ledger.Utxo{
+			RefTxid:   v.RefTxid,
+			RefOffset: v.RefOffset,
+			ToAddr:    v.FromAddr,
+			Amount:    v.Amount,
+		}
+		utxoList = append(utxoList, utxo)
+		s.log.Trace("Select utxo list", "refTxid", fmt.Sprintf("%x", v.RefTxid), "refOffset", v.RefOffset, "amount", new(big.Int).SetBytes(v.Amount).String())
+	}
+
+	out.UtxoList = utxoList
+	out.TotalSelected = totalSelected.String()
+	reqCtx.GetLog().SetInfoField("totalSelect", totalSelected)
+	return out, nil
+}
+
+// SelectUTXOBySize select utxo inputs depending on size
+func (s *Server) SelectUTXOBySize(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.UtxoResponse{Header: defRespHeader(in.Header)}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("failed to merge utxo, bcname not exists", "logid", in.Header.Logid)
+		return out, err
+	}
+
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	utxos, _, totalSelected, err := utxoReader.SelectUtxoBySize(in.GetAddress(), in.GetPublickey(), in.GetNeedLock(), false)
+	if err != nil {
+		out.Header.Error = ErrorEnum(err)
+		reqCtx.GetLog().Warn("failed to select utxo", "error", err)
+		return out, err
+	}
+
+	utxoList := make([]*ledger.Utxo, 0, len(utxos))
+	for _, v := range utxos {
+		utxo := &ledger.Utxo{
+			RefTxid:   v.RefTxid,
+			RefOffset: v.RefOffset,
+			ToAddr:    v.FromAddr,
+			Amount:    v.Amount,
+		}
+		utxoList = append(utxoList, utxo)
+		s.log.Trace("merge utxo list", "refTxid", fmt.Sprintf("%x", v.RefTxid), "refOffset", v.RefOffset, "amount", new(big.Int).SetBytes(v.Amount).String())
+	}
+
+	out.UtxoList = utxoList
+	out.TotalSelected = totalSelected.String()
+	reqCtx.GetLog().SetInfoField("totalSelect", totalSelected)
+	return out, nil
 }
 
 // QueryContractStatData query statistic info about contract
 func (s *Server) QueryContractStatData(ctx context.Context, in *pb.ContractStatDataRequest) (*pb.ContractStatDataResponse, error) {
-	if in.GetHeader() == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.ContractStatDataResponse{Header: &pb.Header{}}
-	bc := s.mg.Get(in.GetBcname())
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.ContractStatDataResponse{Header: defRespHeader(in.Header)}
 
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE
-		s.log.Trace("refuse a connection at function call QueryContractStatData", "logid", in.Header.Logid)
-		return out, nil
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
-	contractStatDataResponse, contractStatDataErr := bc.QueryContractStatData()
-	if contractStatDataErr != nil {
-		return out, contractStatDataErr
+
+	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
+	contractStatData, err := contractReader.QueryContractStatData()
+	if err != nil {
+		return nil, err
 	}
-	return contractStatDataResponse, nil
+
+	out.Data = contractStatData
+	return out, nil
 }
 
 // QueryUtxoRecord query utxo records
-func (s *Server) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetail) (*pb.UtxoRecordDetail, error) {
-	if in.GetHeader() == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.UtxoRecordDetail{Header: &pb.Header{}}
-	bc := s.mg.Get(in.GetBcname())
+func (s *Server) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetails) (*pb.UtxoRecordDetails, error) {
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.UtxoRecordDetails{Header: defRespHeader(in.Header)}
 
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE
-		s.log.Trace("refuse a connection at function call QueryUtxoRecord", "logid", in.Header.Logid)
-		return out, nil
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
 
-	accountName := in.GetAccountName()
-	if len(accountName) > 0 {
-		utxoRecord, err := bc.QueryUtxoRecord(accountName, in.GetDisplayCount())
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	if len(in.GetAccountName()) > 0 {
+		utxoRecord, err := utxoReader.QueryUtxoRecord(in.GetAccountName(), in.GetDisplayCount())
 		if err != nil {
+			reqCtx.GetLog().Warn("query utxo record error", "account", in.GetAccountName())
 			return out, err
 		}
-		return utxoRecord, nil
+
+		out.FrozenUtxoRecord = utxoRecord.FrozenUtxo
+		out.LockedUtxoRecord =  utxoRecord.LockedUtxo
+		out.OpenUtxoRecord = utxoRecord.OpenUtxo
+		return out, nil
 	}
 
 	return out, nil
@@ -95,33 +264,34 @@ func (s *Server) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetail) (
 
 // QueryACL query some account info
 func (s *Server) QueryACL(ctx context.Context, in *pb.AclStatus) (*pb.AclStatus, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.AclStatus{Header: &pb.Header{}}
-	bc := s.mg.Get(in.Bcname)
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.AclStatus{Header: defRespHeader(in.Header)}
 
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Trace("refused a connection at function call QueryAcl", "logid", in.Header.Logid)
-		return out, nil
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
 
+	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
 	accountName := in.GetAccountName()
 	contractName := in.GetContractName()
 	methodName := in.GetMethodName()
 	if len(accountName) > 0 {
-		acl, confirmed, err := bc.QueryAccountACL(accountName)
+		acl, confirmed, err := contractReader.QueryAccountACL(accountName)
 		out.Confirmed = confirmed
 		if err != nil {
+			reqCtx.GetLog().Warn("query account acl error", "account", accountName)
 			return out, err
 		}
 		out.Acl = acl
 	} else if len(contractName) > 0 {
 		if len(methodName) > 0 {
-			acl, confirmed, err := bc.QueryContractMethodACL(contractName, methodName)
+			acl, confirmed, err := contractReader.QueryContractMethodACL(contractName, methodName)
 			out.Confirmed = confirmed
 			if err != nil {
+				reqCtx.GetLog().Warn("query contract method acl error", "account", accountName, "method", methodName)
 				return out, err
 			}
 			out.Acl = acl
@@ -132,21 +302,21 @@ func (s *Server) QueryACL(ctx context.Context, in *pb.AclStatus) (*pb.AclStatus,
 
 // GetAccountContracts get account request
 func (s *Server) GetAccountContracts(ctx context.Context, in *pb.GetAccountContractsRequest) (*pb.GetAccountContractsResponse, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.GetAccountContractsResponse{Header: defRespHeader(in.Header)}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
-	out := &pb.GetAccountContractsResponse{Header: &pb.Header{Logid: in.GetHeader().GetLogid()}}
-	bc := s.mg.Get(in.GetBcname())
-	if bc == nil {
-		// bc not found
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE
-		s.log.Trace("refused a connection while GetAccountContracts", "logid", in.Header.Logid)
-		return out, nil
-	}
-	contractsStatus, err := bc.GetAccountContractsStatus(in.GetAccount(), true)
+
+	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
+	contractsStatus, err := contractReader.GetAccountContracts(in.GetAccount())
 	if err != nil {
 		out.Header.Error = pb.XChainErrorEnum_ACCOUNT_CONTRACT_STATUS_ERROR
-		s.log.Warn("GetAccountContracts error", "logid", in.Header.Logid, "error", err.Error())
+		reqCtx.GetLog().Warn("GetAccountContracts error", "error", err)
 		return out, err
 	}
 	out.ContractsStatus = contractsStatus
@@ -155,41 +325,54 @@ func (s *Server) GetAccountContracts(ctx context.Context, in *pb.GetAccountContr
 
 // QueryTx Get transaction details
 func (s *Server) QueryTx(ctx context.Context, in *pb.TxStatus) (*pb.TxStatus, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.TxStatus{Header: defRespHeader(in.Header)}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
-	out := &pb.TxStatus{Header: &pb.Header{}}
-	bc := s.mg.Get(in.Bcname)
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return out, nil
-	}
-	if bc.QueryTxFromForbidden(in.Txid) {
+
+	ledgerReader := reader.NewLedgerReader(chain.Context(), reqCtx)
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	if utxoReader.QueryTxFromForbidden(in.Txid) {
 		return out, errors.New("tx has been forbidden")
 	}
-	out = bc.QueryTx(in)
+
+	txInfo, err := ledgerReader.QueryTx(in.GetTxid())
+	if err != nil {
+		reqCtx.GetLog().Warn("query tx error", "txid", in.GetTxid())
+		return out, err
+	}
+
+	out.Tx = txInfo.Tx
+	out.Status = txInfo.Status
+	out.Distance = txInfo.Distance
 	return out, nil
 }
 
 // GetBalance get balance for account or addr
 func (s *Server) GetBalance(ctx context.Context, in *pb.AddressStatus) (*pb.AddressStatus, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+
 	for i := 0; i < len(in.Bcs); i++ {
-		bc := s.mg.Get(in.Bcs[i].Bcname)
-		if bc == nil {
+		chain, err := s.engine.Get(in.Bcs[i].Bcname)
+		if err != nil {
 			in.Bcs[i].Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
 			in.Bcs[i].Balance = ""
+			continue
+		}
+
+		utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+		balance, err := utxoReader.GetBalance(in.Address)
+		if err != nil {
+			in.Bcs[i].Error = ErrorEnum(err)
+			in.Bcs[i].Balance = ""
 		} else {
-			bi, err := bc.GetBalance(in.Address)
-			if err != nil {
-				in.Bcs[i].Error = HandleBlockCoreError(err)
-				in.Bcs[i].Balance = ""
-			} else {
-				in.Bcs[i].Error = pb.XChainErrorEnum_SUCCESS
-				in.Bcs[i].Balance = bi
-			}
+			in.Bcs[i].Error = pb.XChainErrorEnum_SUCCESS
+			in.Bcs[i].Balance = balance
 		}
 	}
 	return in, nil
@@ -197,130 +380,154 @@ func (s *Server) GetBalance(ctx context.Context, in *pb.AddressStatus) (*pb.Addr
 
 // GetFrozenBalance get balance frozened for account or addr
 func (s *Server) GetFrozenBalance(ctx context.Context, in *pb.AddressStatus) (*pb.AddressStatus, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+
 	for i := 0; i < len(in.Bcs); i++ {
-		bc := s.mg.Get(in.Bcs[i].Bcname)
-		if bc == nil {
+		chain, err := s.engine.Get(in.Bcs[i].Bcname)
+		if err != nil {
 			in.Bcs[i].Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
 			in.Bcs[i].Balance = ""
+			continue
+		}
+
+		utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+		balance, err := utxoReader.GetFrozenBalance(in.Address)
+		if err != nil {
+			in.Bcs[i].Error = ErrorEnum(err)
+			in.Bcs[i].Balance = ""
 		} else {
-			bi, err := bc.GetFrozenBalance(in.Address)
-			if err != nil {
-				in.Bcs[i].Error = HandleBlockCoreError(err)
-				in.Bcs[i].Balance = ""
-			} else {
-				in.Bcs[i].Error = pb.XChainErrorEnum_SUCCESS
-				in.Bcs[i].Balance = bi
-			}
+			in.Bcs[i].Error = pb.XChainErrorEnum_SUCCESS
+			in.Bcs[i].Balance = balance
 		}
 	}
+
 	return in, nil
 }
 
 // GetBalanceDetail get balance frozened for account or addr
 func (s *Server) GetBalanceDetail(ctx context.Context, in *pb.AddressBalanceStatus) (*pb.AddressBalanceStatus, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+
 	for i := 0; i < len(in.Tfds); i++ {
-		bc := s.mg.Get(in.Tfds[i].Bcname)
-		if bc == nil {
+		chain, err := s.engine.Get(in.Tfds[i].Bcname)
+		if err != nil {
 			in.Tfds[i].Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
 			in.Tfds[i].Tfd = nil
+			continue
+		}
+
+		utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+		tfd, err := utxoReader.GetBalanceDetail(in.Address)
+		if err != nil {
+			in.Tfds[i].Error = ErrorEnum(err)
+			in.Tfds[i].Tfd = nil
 		} else {
-			tfd, err := bc.GetBalanceDetail(in.Address)
-			if err != nil {
-				in.Tfds[i].Error = HandleBlockCoreError(err)
-				in.Tfds[i].Tfd = nil
-			} else {
-				in.Tfds[i].Error = pb.XChainErrorEnum_SUCCESS
-				//				in.Bcs[i].Balance = bi
-				in.Tfds[i] = tfd
-			}
+			in.Tfds[i].Error = pb.XChainErrorEnum_SUCCESS
+			// TODO: 使用了ledger定义的类型，验证是否有效
+			in.Tfds[i].Tfd = tfd
 		}
 	}
+
 	return in, nil
 }
 
 // GetBlock get block info according to blockID
 func (s *Server) GetBlock(ctx context.Context, in *pb.BlockID) (*pb.Block, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	s.log.Trace("Start to dealwith GetBlock", "logid", in.Header.Logid, "in", in)
-	bc := s.mg.Get(in.Bcname)
-	if bc == nil {
-		out := pb.Block{Header: &pb.Header{}}
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return &out, nil
-	}
-	out := bc.GetBlock(in)
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.Block{Header: defRespHeader(in.Header)}
 
-	block := out.GetBlock()
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
+	}
+
+	ledgerReader := reader.NewLedgerReader(chain.Context(), reqCtx)
+	blockInfo, err := ledgerReader.QueryBlock(in.Blockid, true)
+	if err != nil {
+		reqCtx.GetLog().Warn("query block error", "error", err)
+		return out, nil
+	}
+
+	// 类型转换：ledger.BlockInfo => pb.Block
+	out.Block = blockInfo.Block
+	out.Status = pb.Block_EBlockStatus(blockInfo.Status)
+
+	block := blockInfo.GetBlock()
 	transactions := block.GetTransactions()
-	transactionsFilter := []*pb.Transaction{}
+	transactionsFilter := make([]*ledger.Transaction, 0, len(transactions))
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
 	for _, transaction := range transactions {
-		txid := transaction.GetTxid()
-		if bc.QueryTxFromForbidden(txid) {
+		if utxoReader.QueryTxFromForbidden(transaction.GetTxid()) {
 			continue
 		}
+
 		transactionsFilter = append(transactionsFilter, transaction)
 	}
+
 	if transactions != nil {
 		out.Block.Transactions = transactionsFilter
 	}
-	s.log.Trace("Start to dealwith GetBlock result", "logid", in.Header.Logid,
-		"blockid", out.Blockid, "height", out.GetBlock().GetHeight())
+
+	reqCtx.GetLog().SetInfoField("blockid", out.GetBlockid())
+	reqCtx.GetLog().SetInfoField("height", out.GetBlock().GetHeight())
 	return out, nil
 }
 
 // GetBlockChainStatus get systemstatus
 func (s *Server) GetBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.BCStatus, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.BCStatus{Header: defRespHeader(in.Header)}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
-	bc := s.mg.Get(in.Bcname)
-	out := &pb.BCStatus{Header: &pb.Header{}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return out, nil
+
+	chainReader := reader.NewChainReader(chain.Context(), reqCtx)
+	status, err := chainReader.GetChainStatus()
+	if err != nil {
+		reqCtx.GetLog().Warn("get chain status error", "error", err)
 	}
-	out = bc.GetBlockChainStatus(in, pb.ViewOption_NONE)
+
+	// 类型转换：=> pb.BCStatus
+	out.Meta = status.LedgerMeta
+	out.Block = status.TipBlock
+	out.UtxoMeta = status.UtxoMeta
 	return out, nil
 }
 
 // ConfirmBlockChainStatus confirm is_trunk
 func (s *Server) ConfirmBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.BCTipStatus, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.BCTipStatus{Header: defRespHeader(in.Header)}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
 	}
-	bc := s.mg.Get(in.Bcname)
-	if bc == nil {
-		out := pb.BCTipStatus{Header: &pb.Header{}}
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return &out, nil
-	}
-	return bc.ConfirmTipBlockChainStatus(in), nil
+
+	ledgerReader := reader.NewLedgerReader(chain.Context(), reqCtx)
+	return ledgerReader.ConfirmTipBlockChainStatus(in), nil
 }
 
 // GetBlockChains get BlockChains
 func (s *Server) GetBlockChains(ctx context.Context, in *pb.CommonIn) (*pb.BlockChains, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.BlockChains{Header: &pb.Header{}}
-	out.Blockchains = s.mg.GetAll()
+	out := &pb.BlockChains{Header: defRespHeader(in.Header)}
+	out.Blockchains = s.engine.GetChains()
 	return out, nil
 }
 
 // GetSystemStatus get systemstatus
 func (s *Server) GetSystemStatus(ctx context.Context, in *pb.CommonIn) (*pb.SystemsStatusReply, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.SystemsStatusReply{Header: &pb.Header{}}
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.SystemsStatusReply{Header: defRespHeader(in.Header)}
+
 	systemsStatus := &pb.SystemsStatus{
 		Header: in.Header,
 		Speeds: &pb.Speeds{
@@ -328,504 +535,133 @@ func (s *Server) GetSystemStatus(ctx context.Context, in *pb.CommonIn) (*pb.Syst
 			BcSpeeds:  make(map[string]*pb.BCSpeeds),
 		},
 	}
-	bcs := s.mg.GetAll()
-	for _, v := range bcs {
-		bc := s.mg.Get(v)
-		tmpBcs := &pb.BCStatus{Header: in.Header, Bcname: v}
-		bcst := bc.GetBlockChainStatus(tmpBcs, in.ViewOption)
-		if _, ok := systemsStatus.Speeds.BcSpeeds[v]; !ok {
-			systemsStatus.Speeds.BcSpeeds[v] = &pb.BCSpeeds{}
-			systemsStatus.Speeds.BcSpeeds[v].BcSpeed = bc.Speed.GetMaxSpeed()
-			// Attention Please: @zhengqi The speed of systemstatus will be set 0 at v3.9 and will be removed in feature version
+	bcs := s.engine.GetChains()
+	for _, bcName := range bcs {
+		bcStatus := &pb.BCStatus{Header: in.Header, Bcname: bcName}
+		status, err := s.GetBlockChainStatus(ctx, bcStatus)
+		if err != nil {
+			reqCtx.GetLog().Warn("get chain status error", "error", err)
 		}
-		systemsStatus.BcsStatus = append(systemsStatus.BcsStatus, bcst)
+
+		systemsStatus.BcsStatus = append(systemsStatus.BcsStatus, status)
 	}
-	systemsStatus.Speeds.SumSpeeds = s.mg.Speed.GetMaxSpeed()
+
 	if in.ViewOption == pb.ViewOption_NONE || in.ViewOption == pb.ViewOption_PEERS {
-		systemsStatus.PeerUrls = s.mg.P2pSvr.GetPeerUrls()
+		state := s.engine.Context().Net.P2PState()
+		peerUrls := make([]string, 0, len(state.RemotePeer))
+		for _, url := range state.RemotePeer {
+			peerUrls = append(peerUrls, url)
+		}
+		systemsStatus.PeerUrls = peerUrls
 	}
+
 	out.SystemsStatus = systemsStatus
 	return out, nil
 }
 
 // GetNetURL get net url in p2p_base
 func (s *Server) GetNetURL(ctx context.Context, in *pb.CommonIn) (*pb.RawUrl, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.RawUrl{Header: &pb.Header{Logid: in.Header.Logid}}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	netURL := s.mg.P2pSvr.GetNetURL()
-	out.RawUrl = netURL
-	return out, nil
-}
-
-// SelectUTXOBySize select utxo inputs depending on size
-func (s *Server) SelectUTXOBySize(ctx context.Context, in *pb.UtxoInput) (*pb.UtxoOutput, error) {
-	if in.GetHeader() == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.UtxoOutput{Header: &pb.Header{Logid: in.Header.Logid}}
-	bc := s.mg.Get(in.GetBcname())
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE
-		s.log.Warn("failed to merge utxo, bcname not exists", "logid", in.Header.Logid)
-		return out, nil
-	}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	utxos, _, totalSelected, err := bc.Utxovm.SelectUtxosBySize(in.GetAddress(), in.GetPublickey(), in.GetNeedLock(), false)
-	if err != nil {
-		out.Header.Error = xchaincore.HandlerUtxoError(err)
-		s.log.Warn("failed to select utxo", "logid", in.Header.Logid, "error", err.Error())
-		return out, nil
-	}
-	utxoList := []*pb.Utxo{}
-	for _, v := range utxos {
-		utxo := &pb.Utxo{
-			RefTxid:   v.RefTxid,
-			RefOffset: v.RefOffset,
-			ToAddr:    v.FromAddr,
-			Amount:    v.Amount,
-		}
-		utxoList = append(utxoList, utxo)
-		s.log.Trace("Merge utxo list", "refTxid", fmt.Sprintf("%x", v.RefTxid), "refOffset", v.RefOffset, "amount", new(big.Int).SetBytes(v.Amount).String())
-	}
-	totalSelectedStr := totalSelected.String()
-	s.log.Trace("Merge utxo totalSelect", "totalSelect", totalSelectedStr)
-	out.UtxoList = utxoList
-	out.TotalSelected = totalSelectedStr
-	return out, nil
-}
-
-// SelectUTXO select utxo inputs depending on amount
-func (s *Server) SelectUTXO(ctx context.Context, in *pb.UtxoInput) (*pb.UtxoOutput, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.UtxoOutput{Header: &pb.Header{Logid: in.Header.Logid}}
-	bc := s.mg.Get(in.GetBcname())
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("failed to select utxo, bcname not exists", "logid", in.Header.Logid)
-		return out, nil
-	}
-
-	totalNeed, ok := new(big.Int).SetString(in.TotalNeed, 10)
-	if !ok {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return out, nil
-	}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	utxos, _, totalSelected, err := bc.Utxovm.SelectUtxos(in.GetAddress(), in.GetPublickey(), totalNeed, in.GetNeedLock(), false)
-	if err != nil {
-		out.Header.Error = xchaincore.HandlerUtxoError(err)
-		s.log.Warn("failed to select utxo", "logid", in.Header.Logid, "error", err.Error())
-		return out, nil
-	}
-	utxoList := []*pb.Utxo{}
-	for _, v := range utxos {
-		utxo := &pb.Utxo{}
-		utxo.RefTxid = v.RefTxid
-		utxo.Amount = v.Amount
-		utxo.RefOffset = v.RefOffset
-		utxo.ToAddr = v.FromAddr
-		utxoList = append(utxoList, utxo)
-		s.log.Trace("Select utxo list", "refTxid", fmt.Sprintf("%x", v.RefTxid), "refOffset", v.RefOffset, "amount", new(big.Int).SetBytes(v.Amount).String())
-	}
-	totalSelectedStr := totalSelected.String()
-	s.log.Trace("Select utxo totalSelect", "totalSelect", totalSelectedStr)
-	out.UtxoList = utxoList
-	out.TotalSelected = totalSelectedStr
-	return out, nil
-}
-
-// DposCandidates get dpos candidates
-func (s *Server) DposCandidates(ctx context.Context, in *pb.DposCandidatesRequest) (*pb.DposCandidatesResponse, error) {
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-
-	out := &pb.DposCandidatesResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposCandidates failed to get blockchain", "logid", in.Header.Logid)
-		return out, nil
-	}
-	if bc.GetConsType() != consensus.ConsensusTypeTdpos {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposCandidates failed to check consensus type", "logid", in.Header.Logid)
-		return out, errors.New("The consensus is not tdpos")
-	}
-
-	candidates, err := bc.GetDposCandidates()
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_DPOS_QUERY_ERROR
-		s.log.Warn("DposCandidates error", "logid", in.Header.Logid, "error", err)
-		return out, err
-	}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	out.CandidatesInfo = candidates
-	return out, nil
-}
-
-// DposNominateRecords get dpos 提名者提名记录
-func (s *Server) DposNominateRecords(ctx context.Context, in *pb.DposNominateRecordsRequest) (*pb.DposNominateRecordsResponse, error) {
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.DposNominateRecordsResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposNominateRecords failed to get blockchain", "logid", in.Header.Logid)
-		return out, nil
-	}
-
-	if bc.GetConsType() != consensus.ConsensusTypeTdpos {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposNominateRecords failed to check consensus type", "logid", in.Header.Logid)
-		return out, errors.New("The consensus is not tdpos")
-	}
-	s.log.Info("DposNominateRecords GetDposNominateRecords")
-	nominateRecords, err := bc.GetDposNominateRecords(in.Address)
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_DPOS_QUERY_ERROR
-		s.log.Warn("DposNominateRecords error", "logid", in.Header.Logid, "error", err)
-		return out, err
-	}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	out.NominateRecords = nominateRecords
-	return out, nil
-}
-
-// DposNomineeRecords 候选人被提名记录
-func (s *Server) DposNomineeRecords(ctx context.Context, in *pb.DposNomineeRecordsRequest) (*pb.DposNomineeRecordsResponse, error) {
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.DposNomineeRecordsResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposNominatedRecords failed to get blockchain", "logid", in.Header.Logid)
-		return out, nil
-	}
-
-	if bc.GetConsType() != consensus.ConsensusTypeTdpos {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposNominatedRecords failed to check consensus type", "logid", in.Header.Logid)
-		return out, errors.New("The consensus is not tdpos")
-	}
-
-	txid, err := bc.GetDposNominatedRecords(in.Address)
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_DPOS_QUERY_ERROR
-		s.log.Warn("DposNominatedRecords error", "logid", in.Header.Logid, "error", err)
-		return out, err
-	}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	out.Txid = txid
-	return out, nil
-}
-
-// DposVoteRecords 选民投票记录
-func (s *Server) DposVoteRecords(ctx context.Context, in *pb.DposVoteRecordsRequest) (*pb.DposVoteRecordsResponse, error) {
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.DposVoteRecordsResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposVoteRecords failed to get blockchain", "logid", in.Header.Logid)
-		return out, nil
-	}
-
-	if bc.GetConsType() != consensus.ConsensusTypeTdpos {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposVoteRecords failed to check consensus type", "logid", in.Header.Logid)
-		return out, errors.New("The consensus is not tdpos")
-	}
-
-	voteRecords, err := bc.GetDposVoteRecords(in.Address)
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_DPOS_QUERY_ERROR
-		s.log.Warn("DposVoteRecords error", "logid", in.Header.Logid, "error", err)
-		return out, err
-	}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	out.VoteTxidRecords = voteRecords
-	return out, nil
-}
-
-// DposVotedRecords 候选人被投票记录
-func (s *Server) DposVotedRecords(ctx context.Context, in *pb.DposVotedRecordsRequest) (*pb.DposVotedRecordsResponse, error) {
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.DposVotedRecordsResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposVotedRecords failed to get blockchain", "logid", in.Header.Logid)
-		return out, nil
-	}
-
-	if bc.GetConsType() != consensus.ConsensusTypeTdpos {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposVoteRecords failed to check consensus type", "logid", in.Header.Logid)
-		return out, errors.New("The consensus is not tdpos")
-	}
-	votedRecords, err := bc.GetDposVotedRecords(in.Address)
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_DPOS_QUERY_ERROR
-		s.log.Warn("GetDposVotedRecords error", "logid", in.Header.Logid, "error", err)
-		return out, err
-	}
-	out.Header.Error = pb.XChainErrorEnum_SUCCESS
-	out.VotedTxidRecords = votedRecords
-	return out, nil
-}
-
-// DposCheckResults get dpos 检查结果
-func (s *Server) DposCheckResults(ctx context.Context, in *pb.DposCheckResultsRequest) (*pb.DposCheckResultsResponse, error) {
-
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-
-	out := &pb.DposCheckResultsResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposVotedRecords failed to get blockchain", "logid", in.Header.Logid)
-		return out, nil
-	}
-
-	if bc.GetConsType() != consensus.ConsensusTypeTdpos {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("DposVoteRecords failed to check consensus type", "logid", in.Header.Logid)
-		return out, errors.New("The consensus is not tdpos")
-	}
-
-	checkResult, err := bc.GetCheckResults(in.Term)
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_DPOS_QUERY_ERROR
-		s.log.Warn("DposCheckResults error", "logid", in.Header.Logid, "error", err)
-		return out, err
-	}
-	out.Term = in.Term
-	out.CheckResult = checkResult
-	return out, nil
-}
-
-// DposStatus get dpos current status
-func (s *Server) DposStatus(ctx context.Context, in *pb.DposStatusRequest) (*pb.DposStatusResponse, error) {
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.DposStatusResponse{Header: &pb.Header{Logid: in.Header.Logid}, Status: &pb.DposStatus{}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE
-		s.log.Warn("DposStatus failed  to get blockchain", "logid", in.Header.Logid)
-		return out, nil
-	}
-
-	if bc.GetConsType() != consensus.ConsensusTypeTdpos {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE
-		s.log.Warn("DposStatus failed to check consensus type", "logid", in.Header.Logid)
-		return out, errors.New("The consensus is not tdpos")
-	}
-
-	status := bc.GetConsStatus()
-	out.Status.Term = status.Term
-	out.Status.BlockNum = status.BlockNum
-	out.Status.Proposer = status.Proposer
-	checkResult, err := bc.GetCheckResults(status.Term)
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_DPOS_QUERY_ERROR
-		s.log.Warn("DposStatus error", "logid", in.Header.Logid, "error", err)
-		return out, err
-	}
-	out.Status.CheckResult = checkResult
-	out.Status.ProposerNum = int64(len(checkResult))
-	return out, nil
-}
-
-// PreExecWithSelectUTXO preExec + selectUtxo
-func (s *Server) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSelectUTXORequest) (*pb.PreExecWithSelectUTXOResponse, error) {
-	// verify input param
-	if in == nil {
-		return nil, errors.New("request is invalid")
-	}
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-
-	// initialize output
-	out := &pb.PreExecWithSelectUTXOResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-	out.Bcname = in.GetBcname()
-	// for PreExec
-	preExecRequest := in.GetRequest()
-	fee := int64(0)
-	if preExecRequest != nil {
-		preExecRequest.Header = in.Header
-		invokeRPCResponse, preErr := s.PreExec(ctx, preExecRequest)
-		if preErr != nil {
-			return nil, preErr
-		}
-		invokeResponse := invokeRPCResponse.GetResponse()
-		out.Response = invokeResponse
-		fee = out.Response.GetGasUsed()
-	}
-
-	totalAmount := in.GetTotalAmount() + fee
-
-	if totalAmount > 0 {
-		utxoInput := &pb.UtxoInput{
-			Bcname:    in.GetBcname(),
-			Address:   in.GetAddress(),
-			TotalNeed: strconv.FormatInt(totalAmount, 10),
-			Publickey: in.GetSignInfo().GetPublicKey(),
-			UserSign:  in.GetSignInfo().GetSign(),
-			NeedLock:  in.GetNeedLock(),
-		}
-		if ok := validUtxoAccess(utxoInput, s.mg.Get(utxoInput.GetBcname()), in.GetTotalAmount()); !ok {
-			return nil, errors.New("validUtxoAccess failed")
-		}
-		utxoOutput, selectErr := s.SelectUTXO(ctx, utxoInput)
-		if selectErr != nil {
-			return nil, selectErr
-		}
-		if utxoOutput.Header.Error != pb.XChainErrorEnum_SUCCESS {
-			return nil, common.ServerError{utxoOutput.Header.Error}
-		}
-		out.UtxoOutput = utxoOutput
-	}
-	return out, nil
-}
-
-// PreExec smart contract preExec process
-func (s *Server) PreExec(ctx context.Context, in *pb.InvokeRPCRequest) (*pb.InvokeRPCResponse, error) {
-	s.log.Trace("Got PreExec req", "req", in)
-	bc := s.mg.Get(in.GetBcname())
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.InvokeRPCResponse{Header: &pb.Header{Logid: in.Header.Logid}}
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		s.log.Warn("failed to get blockchain before query", "logid", in.Header.Logid)
-		return out, nil
-	}
-	hd := &global.XContext{Timer: global.NewXTimer()}
-	vmResponse, err := bc.PreExec(in, hd)
-	if err != nil {
-		return nil, err
-	}
-	txInputs := vmResponse.GetInputs()
-	for _, txInput := range txInputs {
-		if bc.QueryTxFromForbidden(txInput.GetRefTxid()) {
-			return out, errors.New("RefTxid has been forbidden")
-		}
-	}
-	out.Response = vmResponse
-	s.log.Info("PreExec", "logid", in.Header.Logid, "cost", hd.Timer.Print())
+	out := &pb.RawUrl{Header: defRespHeader(in.Header)}
+	state := s.engine.Context().Net.P2PState()
+	out.RawUrl = state.PeerAddr
 	return out, nil
 }
 
 // GetBlockByHeight  get trunk block by height
 func (s *Server) GetBlockByHeight(ctx context.Context, in *pb.BlockHeight) (*pb.Block, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	s.log.Trace("Start to get dealwith GetBlockByHeight", "logid", in.Header.Logid, "bcname", in.Bcname, "height", in.Height)
-	bc := s.mg.Get(in.Bcname)
-	if bc == nil {
-		out := pb.Block{Header: &pb.Header{}}
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return &out, nil
-	}
-	out := bc.GetBlockByHeight(in)
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.Block{Header: defRespHeader(in.Header)}
 
-	block := out.GetBlock()
-	transactions := block.GetTransactions()
-	transactionsFilter := []*pb.Transaction{}
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
+		return out, err
+	}
+
+	ledgerReader := reader.NewLedgerReader(chain.Context(), reqCtx)
+	blockInfo, err := ledgerReader.QueryBlockByHeight(in.Height, true)
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCK_EXIST_ERROR
+		reqCtx.GetLog().Warn("query block error", "bc", in.GetBcname(), "height", in.Height)
+		return out, err
+	}
+
+	out.Block = blockInfo.Block
+	out.Status = pb.Block_EBlockStatus(blockInfo.Status)
+
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	transactions := out.GetBlock().GetTransactions()
+	transactionsFilter := make([]*ledger.Transaction, 0, len(transactions))
 	for _, transaction := range transactions {
 		txid := transaction.GetTxid()
-		if bc.QueryTxFromForbidden(txid) {
+		if utxoReader.QueryTxFromForbidden(txid) {
 			continue
 		}
 		transactionsFilter = append(transactionsFilter, transaction)
 	}
+
 	if transactions != nil {
 		out.Block.Transactions = transactionsFilter
 	}
-	s.log.Trace("GetBlockByHeight result", "logid", in.Header.Logid, "bcname", in.Bcname, "height", in.Height,
-		"blockid", out.GetBlockid())
+
+	reqCtx.GetLog().SetInfoField("height", in.Height)
+	reqCtx.GetLog().SetInfoField("blockid", out.GetBlockid())
 	return out, nil
 }
 
 // GetAccountByAK get account list with contain ak
 func (s *Server) GetAccountByAK(ctx context.Context, in *pb.AK2AccountRequest) (*pb.AK2AccountResponse, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	bc := s.mg.Get(in.Bcname)
-	if bc == nil {
-		out := pb.AK2AccountResponse{Header: &pb.Header{}}
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return &out, nil
-	}
-	out := &pb.AK2AccountResponse{
-		Bcname: in.Bcname,
-		Header: global.GHeader(),
-	}
-	accounts, err := bc.QueryAccountContainAK(in.GetAddress())
-	if err != nil || accounts == nil {
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.AK2AccountResponse{Header: defRespHeader(in.Header), Bcname: in.GetBcname()}
+
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
 		return out, err
 	}
+
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	accounts, err := utxoReader.QueryAccountContainAK(in.GetAddress())
+	if err != nil || accounts == nil {
+		reqCtx.GetLog().Warn("QueryAccountContainAK error", "logid", out.Header.Logid, "error", err)
+		return out, err
+	}
+
 	out.Account = accounts
 	return out, err
 }
 
 // GetAddressContracts get contracts of accounts contain a specific address
 func (s *Server) GetAddressContracts(ctx context.Context, in *pb.AddressContractsRequest) (*pb.AddressContractsResponse, error) {
-	if in.Header == nil {
-		in.Header = global.GHeader()
-	}
-	out := &pb.AddressContractsResponse{
-		Header: &pb.Header{
-			Error: pb.XChainErrorEnum_SUCCESS,
-			Logid: in.GetHeader().GetLogid(),
-		},
-	}
-	bc := s.mg.Get(in.GetBcname())
-	if bc == nil {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE
-		s.log.Warn("GetAddressContracts:failed to get blockchain before query", "logid", out.Header.Logid)
-		return out, nil
-	}
+	reqCtx := rctx.ReqCtxFromContext(ctx)
+	out := &pb.AddressContractsResponse{Header: defRespHeader(in.Header)}
 
-	// get all accounts which contains this address
-	accounts, err := bc.QueryAccountContainAK(in.GetAddress())
-	if err != nil || accounts == nil {
-		out.Header.Error = pb.XChainErrorEnum_SERVICE_REFUSED_ERROR
-		s.log.Warn("GetAddressContracts: error occurred", "logid", out.Header.Logid, "error", err)
+	chain, err := s.engine.Get(in.GetBcname())
+	if err != nil {
+		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
 		return out, err
 	}
 
+	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
+	accounts, err := utxoReader.QueryAccountContainAK(in.GetAddress())
+	if err != nil || accounts == nil {
+		reqCtx.GetLog().Warn("QueryAccountContainAK error", "logid", out.Header.Logid, "error", err)
+		return out, err
+	}
+
+	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
 	// get contracts for each account
 	out.Contracts = make(map[string]*pb.ContractList)
 	for _, account := range accounts {
-		contracts, err := bc.GetAccountContractsStatus(account, in.GetNeedContent())
+		contracts, err := contractReader.GetAccountContracts(account)
 		if err != nil {
-			s.log.Warn("GetAddressContracts partial account error", "logid", out.Header.Logid, "error", err)
+			reqCtx.GetLog().Warn("GetAddressContracts partial account error", "logid", out.Header.Logid, "error", err)
 			continue
 		}
+
 		if len(contracts) > 0 {
 			out.Contracts[account] = &pb.ContractList{
 				ContractStatus: contracts,
@@ -834,3 +670,32 @@ func (s *Server) GetAddressContracts(ctx context.Context, in *pb.AddressContract
 	}
 	return out, nil
 }
+//
+////  DposCandidates get all candidates of the tdpos consensus
+//func (s *Server) DposCandidates(context.Context, *pb.DposCandidatesRequest) (*pb.DposCandidatesResponse, error) {
+//	return nil, nil
+//}
+////  DposNominateRecords get all records nominated by an user
+//func (s *Server) DposNominateRecords(context.Context, *pb.DposNominateRecordsRequest) (*pb.DposNominateRecordsResponse, error){
+//	return nil, nil
+//}
+////  DposNomineeRecords get nominated record of a candidate
+//func (s *Server) DposNomineeRecords(context.Context, *pb.DposNomineeRecordsRequest) (*pb.DposNomineeRecordsResponse, error){
+//	return nil, nil
+//}
+////  DposVoteRecords get all vote records voted by an user
+//func (s *Server) DposVoteRecords(context.Context, *pb.DposVoteRecordsRequest) (*pb.DposVoteRecordsResponse, error){
+//	return nil, nil
+//}
+////  DposVotedRecords get all vote records of a candidate
+//func (s *Server) DposVotedRecords(context.Context, *pb.DposVotedRecordsRequest) (*pb.DposVotedRecordsResponse, error){
+//	return nil, nil
+//}
+////  DposCheckResults get check results of a specific term
+//func (s *Server) DposCheckResults(context.Context, *pb.DposCheckResultsRequest) (*pb.DposCheckResultsResponse, error){
+//	return nil, nil
+//}
+//// DposStatus get dpos status
+//func (s *Server) DposStatus(context.Context, *pb.DposStatusRequest) (*pb.DposStatusResponse, error){
+//	return nil, nil
+//}
