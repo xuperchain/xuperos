@@ -1,12 +1,12 @@
 syntax = "proto3";
 package pb;
 
-option go_package = "github.com/ownluke/xuperos/common/pb";
+option go_package = "common/pb";
 
-import "github.com/ownluke/xuperos/common/pb/pb/googleapis/google/api/annotations.proto";
-import "github.com/xuperchain/xupercore/bcs/ledger/xledger/pb/xledger.proto";
-import "github.com/xuperchain/xupercore/protos/contract.proto";
-import "github.com/xuperchain/xupercore/protos/permission.proto";
+import "xuperos/common/pb/googleapis/google/api/annotations.proto";
+import "xupercore/bcs/ledger/xledger/xldgpb/xledger.proto";
+import "xupercore/protos/contract.proto";
+import "xupercore/protos/permission.proto";
 
 enum XChainErrorEnum {
   SUCCESS = 0;
@@ -185,7 +185,12 @@ service Xchain {
   }
 
   // GetNetURL return net url
-  rpc GetNetURL(CommonIn) returns (RawUrl) {}
+  rpc GetNetURL(CommonIn) returns (RawUrl) {
+    option (google.api.http) = {
+      post : "/v1/get_net_url"
+      body : "*"
+    };
+  }
 
   // 新的Select utxos接口, 不需要签名，可以支持选择账户的utxo
   rpc SelectUTXO(UtxoRequest) returns (UtxoResponse) {
@@ -240,9 +245,9 @@ message TxStatus {
   Header header = 1;
   string bcname = 2;
   bytes txid = 3;
-  TransactionStatus status = 4; //当前状态
+  xldgpb.TransactionStatus status = 4; //当前状态
   int64 distance = 5;           //离主干末端的距离（如果在主干上)
-  Transaction tx = 7;
+  xldgpb.Transaction tx = 7;
 }
 
 message CommonReply {
@@ -269,7 +274,7 @@ message PreExecWithSelectUTXORequest {
   string bcname = 2;
   string address = 3;
   int64 totalAmount = 4;
-  SignatureInfo signInfo = 6;
+  protos.SignatureInfo signInfo = 6;
   bool needLock = 7;
   InvokeRPCRequest request = 5;
 }
@@ -280,7 +285,7 @@ message PreExecWithSelectUTXOResponse {
   string bcname = 2;
   protos.InvokeResponse response = 3;
   // for preExec & selectUTXO
-  UtxoOutput utxoOutput = 4;
+  xldgpb.UtxoOutput utxoOutput = 4;
 }
 
 // UtxoRequest query info to query utxos
@@ -306,7 +311,7 @@ message UtxoResponse {
   // outSign return the output
   // bytes outSign = 2;
   // utxo list
-  repeated Utxo utxoList = 2;
+  repeated xldgpb.Utxo utxoList = 2;
   // total selected amount
   string totalSelected = 3;
 }
@@ -326,9 +331,9 @@ message UtxoRecordDetails {
   Header header = 1;
   string bcname = 2;
   string accountName = 3;
-  UtxoRecord openUtxoRecord = 4;
-  UtxoRecord lockedUtxoRecord = 5;
-  UtxoRecord frozenUtxoRecord = 6;
+  xldgpb.UtxoRecord openUtxoRecord = 4;
+  xldgpb.UtxoRecord lockedUtxoRecord = 5;
+  xldgpb.UtxoRecord frozenUtxoRecord = 6;
   int64 displayCount = 7;
 }
 
@@ -377,7 +382,7 @@ message AddressBalanceStatus {
 
 message TokenFrozenDetails {
   string bcname = 1;
-  repeated BalanceDetailInfo tfd = 2;
+  repeated xldgpb.BalanceDetailInfo tfd = 2;
   XChainErrorEnum error = 3;
 }
 
@@ -411,7 +416,7 @@ message Block {
     NOEXIST = 3;
   }
   EBlockStatus status = 4;
-  InternalBlock block = 5;
+  xldgpb.InternalBlock block = 5;
 }
 
 // BlockChain status
@@ -420,11 +425,11 @@ message BCStatus {
   // block name
   string bcname = 2;
   // ledger metadata
-  LedgerMeta meta = 3;
+  xldgpb.LedgerMeta meta = 3;
   // The information of the longest block
-  InternalBlock block = 4;
+  xldgpb.InternalBlock block = 4;
   // Utox information
-  UtxoMeta utxoMeta = 5;
+  xldgpb.UtxoMeta utxoMeta = 5;
   // Branch info
   repeated string branchBlockid = 6;
 }

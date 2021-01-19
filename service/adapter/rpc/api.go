@@ -1,16 +1,15 @@
 package rpc
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"math/big"
 	"strconv"
 
-	ledger "github.com/xuperchain/xupercore/bcs/ledger/xledger/pb"
+	ledger "github.com/xuperchain/xupercore/bcs/ledger/xledger/xldgpb"
 	"github.com/xuperchain/xupercore/kernel/engines/xuperos/reader"
 	"github.com/xuperchain/xupercore/kernel/network/p2p"
 	"github.com/xuperchain/xupercore/protos"
-	"golang.org/x/net/context"
 
 	rctx "github.com/xuperchain/xuperos/common/context"
 	"github.com/xuperchain/xuperos/common/pb"
@@ -56,17 +55,10 @@ func (s *Server) PreExec(ctx context.Context, in *pb.InvokeRPCRequest) (*pb.Invo
 		return out, err
 	}
 
-	response, err := chain.PreExec(reqCtx, in.GetRequests())
+	response, err := chain.PreExec(reqCtx, in.GetRequests(), in.GetInitiator(), in.GetAuthRequire())
 	if err != nil {
 		reqCtx.GetLog().Warn("PreExec error", "error", err)
 		return nil, err
-	}
-
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	for _, txInput := range response.GetInputs() {
-		if utxoReader.QueryTxFromForbidden(txInput.GetRefTxid()) {
-			return out, errors.New("RefTxid has been forbidden")
-		}
 	}
 
 	out.Response = response
@@ -148,28 +140,16 @@ func (s *Server) SelectUTXO(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoRe
 	}
 
 	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	utxos, _, totalSelected, err := utxoReader.SelectUtxo(in.GetAddress(), totalNeed, in.GetNeedLock(), false)
+	response, err := utxoReader.SelectUTXO(in.GetAddress(), totalNeed, in.GetNeedLock(), false)
 	if err != nil {
 		out.Header.Error = ErrorEnum(err)
 		reqCtx.GetLog().Warn("failed to select utxo", "error", err)
 		return out, err
 	}
 
-	utxoList := make([]*ledger.Utxo, 0, len(utxos))
-	for _, v := range utxos {
-		utxo := &ledger.Utxo{
-			RefTxid:   v.RefTxid,
-			RefOffset: v.RefOffset,
-			ToAddr:    v.FromAddr,
-			Amount:    v.Amount,
-		}
-		utxoList = append(utxoList, utxo)
-		s.log.Trace("Select utxo list", "refTxid", fmt.Sprintf("%x", v.RefTxid), "refOffset", v.RefOffset, "amount", new(big.Int).SetBytes(v.Amount).String())
-	}
-
-	out.UtxoList = utxoList
-	out.TotalSelected = totalSelected.String()
-	reqCtx.GetLog().SetInfoField("totalSelect", totalSelected)
+	out.UtxoList = response.UtxoList
+	out.TotalSelected = response.TotalSelected
+	reqCtx.GetLog().SetInfoField("totalSelect", out.TotalSelected)
 	return out, nil
 }
 
@@ -186,28 +166,16 @@ func (s *Server) SelectUTXOBySize(ctx context.Context, in *pb.UtxoRequest) (*pb.
 	}
 
 	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	utxos, _, totalSelected, err := utxoReader.SelectUtxoBySize(in.GetAddress(), in.GetPublickey(), in.GetNeedLock(), false)
+	response, err := utxoReader.SelectUTXOBySize(in.GetAddress(), in.GetNeedLock(), false)
 	if err != nil {
 		out.Header.Error = ErrorEnum(err)
 		reqCtx.GetLog().Warn("failed to select utxo", "error", err)
 		return out, err
 	}
 
-	utxoList := make([]*ledger.Utxo, 0, len(utxos))
-	for _, v := range utxos {
-		utxo := &ledger.Utxo{
-			RefTxid:   v.RefTxid,
-			RefOffset: v.RefOffset,
-			ToAddr:    v.FromAddr,
-			Amount:    v.Amount,
-		}
-		utxoList = append(utxoList, utxo)
-		s.log.Trace("merge utxo list", "refTxid", fmt.Sprintf("%x", v.RefTxid), "refOffset", v.RefOffset, "amount", new(big.Int).SetBytes(v.Amount).String())
-	}
-
-	out.UtxoList = utxoList
-	out.TotalSelected = totalSelected.String()
-	reqCtx.GetLog().SetInfoField("totalSelect", totalSelected)
+	out.UtxoList = response.UtxoList
+	out.TotalSelected = response.TotalSelected
+	reqCtx.GetLog().SetInfoField("totalSelect", out.TotalSelected)
 	return out, nil
 }
 
@@ -279,21 +247,23 @@ func (s *Server) QueryACL(ctx context.Context, in *pb.AclStatus) (*pb.AclStatus,
 	contractName := in.GetContractName()
 	methodName := in.GetMethodName()
 	if len(accountName) > 0 {
-		acl, confirmed, err := contractReader.QueryAccountACL(accountName)
-		out.Confirmed = confirmed
+		acl, err := contractReader.QueryAccountACL(accountName)
 		if err != nil {
+			out.Confirmed = false
 			reqCtx.GetLog().Warn("query account acl error", "account", accountName)
 			return out, err
 		}
+		out.Confirmed = true
 		out.Acl = acl
 	} else if len(contractName) > 0 {
 		if len(methodName) > 0 {
-			acl, confirmed, err := contractReader.QueryContractMethodACL(contractName, methodName)
-			out.Confirmed = confirmed
+			acl, err := contractReader.QueryContractMethodACL(contractName, methodName)
 			if err != nil {
+				out.Confirmed = false
 				reqCtx.GetLog().Warn("query contract method acl error", "account", accountName, "method", methodName)
 				return out, err
 			}
+			out.Confirmed = true
 			out.Acl = acl
 		}
 	}
@@ -336,11 +306,6 @@ func (s *Server) QueryTx(ctx context.Context, in *pb.TxStatus) (*pb.TxStatus, er
 	}
 
 	ledgerReader := reader.NewLedgerReader(chain.Context(), reqCtx)
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	if utxoReader.QueryTxFromForbidden(in.Txid) {
-		return out, errors.New("tx has been forbidden")
-	}
-
 	txInfo, err := ledgerReader.QueryTx(in.GetTxid())
 	if err != nil {
 		reqCtx.GetLog().Warn("query tx error", "txid", in.GetTxid())
@@ -457,12 +422,7 @@ func (s *Server) GetBlock(ctx context.Context, in *pb.BlockID) (*pb.Block, error
 	block := blockInfo.GetBlock()
 	transactions := block.GetTransactions()
 	transactionsFilter := make([]*ledger.Transaction, 0, len(transactions))
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
 	for _, transaction := range transactions {
-		if utxoReader.QueryTxFromForbidden(transaction.GetTxid()) {
-			continue
-		}
-
 		transactionsFilter = append(transactionsFilter, transaction)
 	}
 
@@ -495,7 +455,7 @@ func (s *Server) GetBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.
 
 	// 类型转换：=> pb.BCStatus
 	out.Meta = status.LedgerMeta
-	out.Block = status.TipBlock
+	out.Block = status.Block
 	out.UtxoMeta = status.UtxoMeta
 	return out, nil
 }
@@ -512,8 +472,14 @@ func (s *Server) ConfirmBlockChainStatus(ctx context.Context, in *pb.BCStatus) (
 		return out, err
 	}
 
-	ledgerReader := reader.NewLedgerReader(chain.Context(), reqCtx)
-	return ledgerReader.ConfirmTipBlockChainStatus(in), nil
+	chainReader := reader.NewChainReader(chain.Context(), reqCtx)
+	isTrunkTip, err := chainReader.IsTrunkTipBlock(in.GetBlock().GetBlockid())
+	if err != nil {
+		return nil, err
+	}
+
+	out.IsTrunkTip = isTrunkTip
+	return out, nil
 }
 
 // GetBlockChains get BlockChains
@@ -547,10 +513,10 @@ func (s *Server) GetSystemStatus(ctx context.Context, in *pb.CommonIn) (*pb.Syst
 	}
 
 	if in.ViewOption == pb.ViewOption_NONE || in.ViewOption == pb.ViewOption_PEERS {
-		state := s.engine.Context().Net.P2PState()
-		peerUrls := make([]string, 0, len(state.RemotePeer))
-		for _, url := range state.RemotePeer {
-			peerUrls = append(peerUrls, url)
+		peerInfo := s.engine.Context().Net.PeerInfo()
+		peerUrls := make([]string, 0, len(peerInfo.Peer))
+		for _, peer := range peerInfo.Peer {
+			peerUrls = append(peerUrls, peer.Address)
 		}
 		systemsStatus.PeerUrls = peerUrls
 	}
@@ -562,8 +528,8 @@ func (s *Server) GetSystemStatus(ctx context.Context, in *pb.CommonIn) (*pb.Syst
 // GetNetURL get net url in p2p_base
 func (s *Server) GetNetURL(ctx context.Context, in *pb.CommonIn) (*pb.RawUrl, error) {
 	out := &pb.RawUrl{Header: defRespHeader(in.Header)}
-	state := s.engine.Context().Net.P2PState()
-	out.RawUrl = state.PeerAddr
+	peerInfo := s.engine.Context().Net.PeerInfo()
+	out.RawUrl = peerInfo.Address
 	return out, nil
 }
 
@@ -590,19 +556,9 @@ func (s *Server) GetBlockByHeight(ctx context.Context, in *pb.BlockHeight) (*pb.
 	out.Block = blockInfo.Block
 	out.Status = pb.Block_EBlockStatus(blockInfo.Status)
 
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
 	transactions := out.GetBlock().GetTransactions()
-	transactionsFilter := make([]*ledger.Transaction, 0, len(transactions))
-	for _, transaction := range transactions {
-		txid := transaction.GetTxid()
-		if utxoReader.QueryTxFromForbidden(txid) {
-			continue
-		}
-		transactionsFilter = append(transactionsFilter, transaction)
-	}
-
 	if transactions != nil {
-		out.Block.Transactions = transactionsFilter
+		out.Block.Transactions = transactions
 	}
 
 	reqCtx.GetLog().SetInfoField("height", in.Height)
@@ -622,8 +578,8 @@ func (s *Server) GetAccountByAK(ctx context.Context, in *pb.AK2AccountRequest) (
 		return out, err
 	}
 
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	accounts, err := utxoReader.QueryAccountContainAK(in.GetAddress())
+	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
+	accounts, err := contractReader.GetAccountByAK(in.GetAddress())
 	if err != nil || accounts == nil {
 		reqCtx.GetLog().Warn("QueryAccountContainAK error", "logid", out.Header.Logid, "error", err)
 		return out, err
@@ -645,14 +601,13 @@ func (s *Server) GetAddressContracts(ctx context.Context, in *pb.AddressContract
 		return out, err
 	}
 
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	accounts, err := utxoReader.QueryAccountContainAK(in.GetAddress())
+	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
+	accounts, err := contractReader.GetAccountByAK(in.GetAddress())
 	if err != nil || accounts == nil {
 		reqCtx.GetLog().Warn("QueryAccountContainAK error", "logid", out.Header.Logid, "error", err)
 		return out, err
 	}
 
-	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
 	// get contracts for each account
 	out.Contracts = make(map[string]*pb.ContractList)
 	for _, account := range accounts {

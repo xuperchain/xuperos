@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"strings"
 
-	edef "github.com/xuperchain/xupercore/kernel/engines/xuperos/commom"
+	edef "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
 	"github.com/xuperchain/xupercore/lib/logs"
 	"github.com/xuperchain/xupercore/lib/utils"
 	"google.golang.org/grpc"
