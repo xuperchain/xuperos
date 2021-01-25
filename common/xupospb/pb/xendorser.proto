@@ -1,27 +1,22 @@
 syntax = "proto3";
 package pb;
 
-option go_package = "common/pb";
-
-import "xupercore/protos/permission.proto";
-import "xupercore/bcs/ledger/xledger/xldgpb/xledger.proto";
-
-import "xuperos/common/pb/googleapis/google/api/annotations.proto";
-import "xuperos/common/pb/rpc.proto";
+import "xchain.proto";
+import "google/api/annotations.proto";
 
 // 请求参数
 message EndorserRequest {
   Header header = 1;
   string RequestName = 2; // 请求名(类型)
   string BcName = 3;      // 请求链名
-  xldgpb.Transaction Fee = 4;    // 带签名的交易费Tx
+  Transaction Fee = 4;    // 带签名的交易费Tx
   bytes RequestData = 5;  // Json打包的数据
 }
 message EndorserResponse {
   Header header = 1;
   string ResponseName = 2;
   string EndorserAddress = 3;     // 背书服务地址
-  protos.SignatureInfo EndorserSign = 4; // 背书服务签名
+  SignatureInfo EndorserSign = 4; // 背书服务签名
   bytes ResponseData = 5;
 }
 

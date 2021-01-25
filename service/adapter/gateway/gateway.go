@@ -14,7 +14,7 @@ import (
 
 	sconf "github.com/xuperchain/xuperos/common/config"
 	def "github.com/xuperchain/xuperos/common/def"
-	"github.com/xuperchain/xuperos/common/pb"
+	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
 type Gateway struct {

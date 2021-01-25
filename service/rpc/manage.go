@@ -8,7 +8,7 @@ import (
 
 	sconf "github.com/xuperchain/xuperos/common/config"
 	"github.com/xuperchain/xuperos/common/def"
-	"github.com/xuperchain/xuperos/common/pb"
+	pb "github.com/xuperchain/xuperos/common/xupospb"
 
 	"github.com/xuperchain/xupercore/kernel/engines"
 	"github.com/xuperchain/xupercore/kernel/engines/xuperos"
@@ -97,7 +97,7 @@ func (t *RpcServMG) runRpcServ() error {
 	)
 
 	t.servHD = grpc.NewServer(rpcOptions...)
-	pb.RegisterXchainServer(t.servHD, t.rpcServ)
+	pb.RegisterXuperOSServer(t.servHD, t.rpcServ)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%d", t.scfg.RpcPort))
 	if err != nil {
