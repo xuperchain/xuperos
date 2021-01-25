@@ -10,23 +10,21 @@ import (
 
 type ServConf struct {
 	// rpc server listen port
-	RpcPort            int   `yaml:"rpcPort,omitempty"`
-	TlsRpcPort         int   `yaml:"tlsRpcPort,omitempty"`
-	AdapterRpcPort     int   `yaml:"adapterRpcPort,omitempty"`
-	AdapterGWPort      int   `yaml:"adapterGWPort,omitempty"`
-	MetricPort         int   `yaml:"metricPort,omitempty"`
-	EnableMetric       bool  `yaml:"enableMetric,omitempty"`
-	EnableTls          bool  `yaml:"enableTls,omitempty"`
-	EnableAdapter      bool  `yaml:"enableAdapter,omitempty"`
-	EnableEndorser     bool  `yaml:"enableEndorser,omitempty"`
-	AdapterAllowCROS   bool  `yaml:"adapterAllowCROS,omitempty"`
-	MaxMsgSize         int   `yaml:"maxMsgSize,omitempty"`
-	ReadBufSize        int   `yaml:"readBufSize,omitempty"`
-	WriteBufSize       int   `yaml:"writeBufSize,omitempty"`
-	InitWindowSize     int32 `yaml:"initWindowSize,omitempty"`
-	InitConnWindowSize int32 `yaml:"initConnWindowSize,omitempty"`
-	TlsPath 		   string`yaml:"tlsPath,omitempty"`
-	TlsServerName 	   string`yaml:"tlsServerName,omitempty"`
+	RpcPort            int    `yaml:"rpcPort,omitempty"`
+	AdapterRpcPort     int    `yaml:"adapterRpcPort,omitempty"`
+	AdapterGWPort      int    `yaml:"adapterGWPort,omitempty"`
+	MetricPort         int    `yaml:"metricPort,omitempty"`
+	EnableMetric       bool   `yaml:"enableMetric,omitempty"`
+	EnableTls          bool   `yaml:"enableTls,omitempty"`
+	EnableAdapter      bool   `yaml:"enableAdapter,omitempty"`
+	EnableEndorser     bool   `yaml:"enableEndorser,omitempty"`
+	AdapterAllowCROS   bool   `yaml:"adapterAllowCROS,omitempty"`
+	MaxMsgSize         int    `yaml:"maxMsgSize,omitempty"`
+	ReadBufSize        int    `yaml:"readBufSize,omitempty"`
+	WriteBufSize       int    `yaml:"writeBufSize,omitempty"`
+	InitWindowSize     int32  `yaml:"initWindowSize,omitempty"`
+	InitConnWindowSize int32  `yaml:"initConnWindowSize,omitempty"`
+	TlsServerName      string `yaml:"tlsServerName,omitempty"`
 }
 
 func LoadServConf(cfgFile string) (*ServConf, error) {
@@ -42,7 +40,6 @@ func LoadServConf(cfgFile string) (*ServConf, error) {
 func GetDefServConf() *ServConf {
 	return &ServConf{
 		RpcPort:            38101,
-		TlsRpcPort:         37102,
 		AdapterRpcPort:     37101,
 		AdapterGWPort:      37102,
 		MetricPort:         38100,
@@ -56,8 +53,7 @@ func GetDefServConf() *ServConf {
 		WriteBufSize:       32 << 10,
 		InitWindowSize:     128 << 10,
 		InitConnWindowSize: 64 << 10,
-		TlsPath: 			"tls",
-		TlsServerName: 		"localhost",
+		TlsServerName:      "localhost",
 	}
 }
 

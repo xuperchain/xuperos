@@ -12,39 +12,47 @@ import (
 	"github.com/xuperchain/xupercore/protos"
 
 	rctx "github.com/xuperchain/xuperos/common/context"
-	"github.com/xuperchain/xuperos/common/pb"
+	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
+// 注意：
+// 1.rpc接口响应resp不能为nil，必须实例化
+// 2.rpc接口响应err必须为ecom.Error类型的标准错误，没有错误响应err=nil
+// 3.rpc接口不需要关注resp.Header，由拦截器根据err统一设置
+// 4.rpc接口可以调用log库提供的SetInfoField方法附加输出到ending log
+
 // PostTx post transaction to blockchain network
-func (s *Server) PostTx(ctx context.Context, in *pb.TxStatus) (*pb.CommonReply, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.CommonReply{Header: defRespHeader(in.Header)}
+func (s *RpcServ) PostTx(gctx context.Context, req *pb.TxStatus) (*pb.CommonReply, error) {
+	// 默认响应
+	resp := &pb.CommonReply{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
 
-	chain, err := s.engine.Get(in.GetBcname())
+	// 校验参数
+	if req == nil || req.GetTx() == nil || req.GetBcname() == "" {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
+	}
+	tx := TxToXledger(req.GetTx())
+	if tx == nil {
+		rctx.GetLog().Warn("param error,tx convert to xledger tx failed")
+		return resp, ecom.ErrParameter
+	}
+
+	// 提交交易
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
 	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
-		return out, err
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, err
 	}
-
-	err = chain.SubmitTx(reqCtx, in.Tx)
-	out.Header.Error = ErrorEnum(err)
-	if out.Header.Error == pb.XChainErrorEnum_SUCCESS {
-		opts := []p2p.MessageOption {
-			p2p.WithLogId(in.GetHeader().GetLogid()),
-			p2p.WithBCName(in.GetBcname()),
-		}
-		msg := p2p.NewMessage(protos.XuperMessage_POSTTX, in, opts...)
-
-		engCtx := s.engine.Context()
-		go engCtx.Net.SendMessage(reqCtx, msg)
-	}
-
-	return out, err
+	err = handle.SubmitTx(req.GetTx())
+	rctx.GetLog().SetInfoField("bc_name", req.GetBcname())
+	rctx.GetLog().SetInfoField("txid", utils.F(req.GetTxid()))
+	return resp, err
 }
 
 // PreExec smart contract preExec process
-func (s *Server) PreExec(ctx context.Context, in *pb.InvokeRPCRequest) (*pb.InvokeRPCResponse, error) {
+func (s *RpcServ) PreExec(ctx context.Context, in *pb.InvokeRPCRequest) (*pb.InvokeRPCResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.InvokeRPCResponse{Header: defRespHeader(in.Header)}
 
@@ -66,7 +74,7 @@ func (s *Server) PreExec(ctx context.Context, in *pb.InvokeRPCRequest) (*pb.Invo
 }
 
 // PreExecWithSelectUTXO preExec + selectUtxo
-func (s *Server) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSelectUTXORequest) (*pb.PreExecWithSelectUTXOResponse, error) {
+func (s *RpcServ) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSelectUTXORequest) (*pb.PreExecWithSelectUTXOResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.PreExecWithSelectUTXOResponse{Header: defRespHeader(in.Header), Bcname: in.GetBcname()}
 
@@ -94,7 +102,7 @@ func (s *Server) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSe
 	// SelectUTXO
 	totalAmount := in.GetTotalAmount() + fee
 	if totalAmount > 0 {
-		utxoInput := &pb.UtxoRequest {
+		utxoInput := &pb.UtxoRequest{
 			Bcname:    in.GetBcname(),
 			Address:   in.GetAddress(),
 			TotalNeed: strconv.FormatInt(totalAmount, 10),
@@ -113,7 +121,7 @@ func (s *Server) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSe
 		}
 
 		out.UtxoOutput = &ledger.UtxoOutput{
-			UtxoList: utxoOutput.UtxoList,
+			UtxoList:      utxoOutput.UtxoList,
 			TotalSelected: utxoOutput.TotalSelected,
 		}
 	}
@@ -122,7 +130,7 @@ func (s *Server) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSe
 }
 
 // SelectUTXO select utxo inputs depending on amount
-func (s *Server) SelectUTXO(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
+func (s *RpcServ) SelectUTXO(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.UtxoResponse{Header: defRespHeader(in.Header)}
 
@@ -154,7 +162,7 @@ func (s *Server) SelectUTXO(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoRe
 }
 
 // SelectUTXOBySize select utxo inputs depending on size
-func (s *Server) SelectUTXOBySize(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
+func (s *RpcServ) SelectUTXOBySize(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.UtxoResponse{Header: defRespHeader(in.Header)}
 
@@ -180,7 +188,7 @@ func (s *Server) SelectUTXOBySize(ctx context.Context, in *pb.UtxoRequest) (*pb.
 }
 
 // QueryContractStatData query statistic info about contract
-func (s *Server) QueryContractStatData(ctx context.Context, in *pb.ContractStatDataRequest) (*pb.ContractStatDataResponse, error) {
+func (s *RpcServ) QueryContractStatData(ctx context.Context, in *pb.ContractStatDataRequest) (*pb.ContractStatDataResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.ContractStatDataResponse{Header: defRespHeader(in.Header)}
 
@@ -202,7 +210,7 @@ func (s *Server) QueryContractStatData(ctx context.Context, in *pb.ContractStatD
 }
 
 // QueryUtxoRecord query utxo records
-func (s *Server) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetails) (*pb.UtxoRecordDetails, error) {
+func (s *RpcServ) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetails) (*pb.UtxoRecordDetails, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.UtxoRecordDetails{Header: defRespHeader(in.Header)}
 
@@ -222,7 +230,7 @@ func (s *Server) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetails) 
 		}
 
 		out.FrozenUtxoRecord = utxoRecord.FrozenUtxo
-		out.LockedUtxoRecord =  utxoRecord.LockedUtxo
+		out.LockedUtxoRecord = utxoRecord.LockedUtxo
 		out.OpenUtxoRecord = utxoRecord.OpenUtxo
 		return out, nil
 	}
@@ -231,7 +239,7 @@ func (s *Server) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetails) 
 }
 
 // QueryACL query some account info
-func (s *Server) QueryACL(ctx context.Context, in *pb.AclStatus) (*pb.AclStatus, error) {
+func (s *RpcServ) QueryACL(ctx context.Context, in *pb.AclStatus) (*pb.AclStatus, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.AclStatus{Header: defRespHeader(in.Header)}
 
@@ -271,7 +279,7 @@ func (s *Server) QueryACL(ctx context.Context, in *pb.AclStatus) (*pb.AclStatus,
 }
 
 // GetAccountContracts get account request
-func (s *Server) GetAccountContracts(ctx context.Context, in *pb.GetAccountContractsRequest) (*pb.GetAccountContractsResponse, error) {
+func (s *RpcServ) GetAccountContracts(ctx context.Context, in *pb.GetAccountContractsRequest) (*pb.GetAccountContractsResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.GetAccountContractsResponse{Header: defRespHeader(in.Header)}
 
@@ -294,7 +302,7 @@ func (s *Server) GetAccountContracts(ctx context.Context, in *pb.GetAccountContr
 }
 
 // QueryTx Get transaction details
-func (s *Server) QueryTx(ctx context.Context, in *pb.TxStatus) (*pb.TxStatus, error) {
+func (s *RpcServ) QueryTx(ctx context.Context, in *pb.TxStatus) (*pb.TxStatus, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.TxStatus{Header: defRespHeader(in.Header)}
 
@@ -319,7 +327,7 @@ func (s *Server) QueryTx(ctx context.Context, in *pb.TxStatus) (*pb.TxStatus, er
 }
 
 // GetBalance get balance for account or addr
-func (s *Server) GetBalance(ctx context.Context, in *pb.AddressStatus) (*pb.AddressStatus, error) {
+func (s *RpcServ) GetBalance(ctx context.Context, in *pb.AddressStatus) (*pb.AddressStatus, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 
 	for i := 0; i < len(in.Bcs); i++ {
@@ -344,7 +352,7 @@ func (s *Server) GetBalance(ctx context.Context, in *pb.AddressStatus) (*pb.Addr
 }
 
 // GetFrozenBalance get balance frozened for account or addr
-func (s *Server) GetFrozenBalance(ctx context.Context, in *pb.AddressStatus) (*pb.AddressStatus, error) {
+func (s *RpcServ) GetFrozenBalance(ctx context.Context, in *pb.AddressStatus) (*pb.AddressStatus, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 
 	for i := 0; i < len(in.Bcs); i++ {
@@ -370,7 +378,7 @@ func (s *Server) GetFrozenBalance(ctx context.Context, in *pb.AddressStatus) (*p
 }
 
 // GetBalanceDetail get balance frozened for account or addr
-func (s *Server) GetBalanceDetail(ctx context.Context, in *pb.AddressBalanceStatus) (*pb.AddressBalanceStatus, error) {
+func (s *RpcServ) GetBalanceDetail(ctx context.Context, in *pb.AddressBalanceStatus) (*pb.AddressBalanceStatus, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 
 	for i := 0; i < len(in.Tfds); i++ {
@@ -397,7 +405,7 @@ func (s *Server) GetBalanceDetail(ctx context.Context, in *pb.AddressBalanceStat
 }
 
 // GetBlock get block info according to blockID
-func (s *Server) GetBlock(ctx context.Context, in *pb.BlockID) (*pb.Block, error) {
+func (s *RpcServ) GetBlock(ctx context.Context, in *pb.BlockID) (*pb.Block, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.Block{Header: defRespHeader(in.Header)}
 
@@ -436,7 +444,7 @@ func (s *Server) GetBlock(ctx context.Context, in *pb.BlockID) (*pb.Block, error
 }
 
 // GetBlockChainStatus get systemstatus
-func (s *Server) GetBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.BCStatus, error) {
+func (s *RpcServ) GetBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.BCStatus, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.BCStatus{Header: defRespHeader(in.Header)}
 
@@ -461,7 +469,7 @@ func (s *Server) GetBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.
 }
 
 // ConfirmBlockChainStatus confirm is_trunk
-func (s *Server) ConfirmBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.BCTipStatus, error) {
+func (s *RpcServ) ConfirmBlockChainStatus(ctx context.Context, in *pb.BCStatus) (*pb.BCTipStatus, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.BCTipStatus{Header: defRespHeader(in.Header)}
 
@@ -483,14 +491,14 @@ func (s *Server) ConfirmBlockChainStatus(ctx context.Context, in *pb.BCStatus) (
 }
 
 // GetBlockChains get BlockChains
-func (s *Server) GetBlockChains(ctx context.Context, in *pb.CommonIn) (*pb.BlockChains, error) {
+func (s *RpcServ) GetBlockChains(ctx context.Context, in *pb.CommonIn) (*pb.BlockChains, error) {
 	out := &pb.BlockChains{Header: defRespHeader(in.Header)}
 	out.Blockchains = s.engine.GetChains()
 	return out, nil
 }
 
 // GetSystemStatus get systemstatus
-func (s *Server) GetSystemStatus(ctx context.Context, in *pb.CommonIn) (*pb.SystemsStatusReply, error) {
+func (s *RpcServ) GetSystemStatus(ctx context.Context, in *pb.CommonIn) (*pb.SystemsStatusReply, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.SystemsStatusReply{Header: defRespHeader(in.Header)}
 
@@ -526,7 +534,7 @@ func (s *Server) GetSystemStatus(ctx context.Context, in *pb.CommonIn) (*pb.Syst
 }
 
 // GetNetURL get net url in p2p_base
-func (s *Server) GetNetURL(ctx context.Context, in *pb.CommonIn) (*pb.RawUrl, error) {
+func (s *RpcServ) GetNetURL(ctx context.Context, in *pb.CommonIn) (*pb.RawUrl, error) {
 	out := &pb.RawUrl{Header: defRespHeader(in.Header)}
 	peerInfo := s.engine.Context().Net.PeerInfo()
 	out.RawUrl = peerInfo.Address
@@ -534,7 +542,7 @@ func (s *Server) GetNetURL(ctx context.Context, in *pb.CommonIn) (*pb.RawUrl, er
 }
 
 // GetBlockByHeight  get trunk block by height
-func (s *Server) GetBlockByHeight(ctx context.Context, in *pb.BlockHeight) (*pb.Block, error) {
+func (s *RpcServ) GetBlockByHeight(ctx context.Context, in *pb.BlockHeight) (*pb.Block, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.Block{Header: defRespHeader(in.Header)}
 
@@ -567,7 +575,7 @@ func (s *Server) GetBlockByHeight(ctx context.Context, in *pb.BlockHeight) (*pb.
 }
 
 // GetAccountByAK get account list with contain ak
-func (s *Server) GetAccountByAK(ctx context.Context, in *pb.AK2AccountRequest) (*pb.AK2AccountResponse, error) {
+func (s *RpcServ) GetAccountByAK(ctx context.Context, in *pb.AK2AccountRequest) (*pb.AK2AccountResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.AK2AccountResponse{Header: defRespHeader(in.Header), Bcname: in.GetBcname()}
 
@@ -590,7 +598,7 @@ func (s *Server) GetAccountByAK(ctx context.Context, in *pb.AK2AccountRequest) (
 }
 
 // GetAddressContracts get contracts of accounts contain a specific address
-func (s *Server) GetAddressContracts(ctx context.Context, in *pb.AddressContractsRequest) (*pb.AddressContractsResponse, error) {
+func (s *RpcServ) GetAddressContracts(ctx context.Context, in *pb.AddressContractsRequest) (*pb.AddressContractsResponse, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.AddressContractsResponse{Header: defRespHeader(in.Header)}
 
@@ -625,32 +633,38 @@ func (s *Server) GetAddressContracts(ctx context.Context, in *pb.AddressContract
 	}
 	return out, nil
 }
-//
-////  DposCandidates get all candidates of the tdpos consensus
-//func (s *Server) DposCandidates(context.Context, *pb.DposCandidatesRequest) (*pb.DposCandidatesResponse, error) {
-//	return nil, nil
-//}
-////  DposNominateRecords get all records nominated by an user
-//func (s *Server) DposNominateRecords(context.Context, *pb.DposNominateRecordsRequest) (*pb.DposNominateRecordsResponse, error){
-//	return nil, nil
-//}
-////  DposNomineeRecords get nominated record of a candidate
-//func (s *Server) DposNomineeRecords(context.Context, *pb.DposNomineeRecordsRequest) (*pb.DposNomineeRecordsResponse, error){
-//	return nil, nil
-//}
-////  DposVoteRecords get all vote records voted by an user
-//func (s *Server) DposVoteRecords(context.Context, *pb.DposVoteRecordsRequest) (*pb.DposVoteRecordsResponse, error){
-//	return nil, nil
-//}
-////  DposVotedRecords get all vote records of a candidate
-//func (s *Server) DposVotedRecords(context.Context, *pb.DposVotedRecordsRequest) (*pb.DposVotedRecordsResponse, error){
-//	return nil, nil
-//}
-////  DposCheckResults get check results of a specific term
-//func (s *Server) DposCheckResults(context.Context, *pb.DposCheckResultsRequest) (*pb.DposCheckResultsResponse, error){
-//	return nil, nil
-//}
-//// DposStatus get dpos status
-//func (s *Server) DposStatus(context.Context, *pb.DposStatusRequest) (*pb.DposStatusResponse, error){
-//	return nil, nil
-//}
+
+// DposCandidates get all candidates of the tdpos consensus
+func (s *RpcServ) DposCandidates(context.Context, *pb.DposCandidatesRequest) (*pb.DposCandidatesResponse, error) {
+	return nil, nil
+}
+
+// DposNominateRecords get all records nominated by an user
+func (s *RpcServ) DposNominateRecords(context.Context, *pb.DposNominateRecordsRequest) (*pb.DposNominateRecordsResponse, error) {
+	return nil, nil
+}
+
+// DposNomineeRecords get nominated record of a candidate
+func (s *RpcServ) DposNomineeRecords(context.Context, *pb.DposNomineeRecordsRequest) (*pb.DposNomineeRecordsResponse, error) {
+	return nil, nil
+}
+
+// DposVoteRecords get all vote records voted by an user
+func (s *RpcServ) DposVoteRecords(context.Context, *pb.DposVoteRecordsRequest) (*pb.DposVoteRecordsResponse, error) {
+	return nil, nil
+}
+
+// DposVotedRecords get all vote records of a candidate
+func (s *RpcServ) DposVotedRecords(context.Context, *pb.DposVotedRecordsRequest) (*pb.DposVotedRecordsResponse, error) {
+	return nil, nil
+}
+
+// DposCheckResults get check results of a specific term
+func (s *RpcServ) DposCheckResults(context.Context, *pb.DposCheckResultsRequest) (*pb.DposCheckResultsResponse, error) {
+	return nil, nil
+}
+
+// DposStatus get dpos status
+func (s *RpcServ) DposStatus(context.Context, *pb.DposStatusRequest) (*pb.DposStatusResponse, error) {
+	return nil, nil
+}

@@ -1,16 +1,9 @@
 syntax = "proto3";
 
-package pb;
+// import "xupercore/bcs/ledger/xledger/xldgpb/xledger.proto";
+// import "xupercore/protos/contract.proto";
 
-enum XuperOSErrNo {
-    SUCCESS = 0;
-    // 内部错误
-    INTERNAL_ERROR = 1;
-    // 参数错误
-    PARAM_ERROR = 2;
-    // 未知错误
-    UNKNOW_ERROR = 3;
-}
+package xupospb;
 
 // 通用请求Header
 message ReqHeader {
@@ -25,17 +18,19 @@ message RespHeader {
     // 请求id
     string log_id = 1;
     // 错误码
-    XuperOSErrNo error = 2;
+    int64 err_code = 2;
+    // 错误信息
+    string err_msg = 3;
     // 节点追踪信息，方便问题定位
-    string trace_id = 3;
+    string trace_id = 4;
 }
 
 message BaseReq {
-    ReqHeader Header = 1;
+    ReqHeader header = 1;
 }
 
 message BaseResp {
-    RespHeader Header = 1;
+    RespHeader header = 1;
 }
 
 service XuperOS {
