@@ -2,19 +2,19 @@ package gateway
 
 import (
 	"context"
-	"flag"
-	"log"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 
-	"github.com/xuperchain/xupercore/lib/logs"
-	sconf "github.com/xuperchain/xupercore/server/config"
-	"github.com/xuperchain/xuperos/common/def"
-
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"github.com/xuperchain/xuperchain/core/pb"
+	"github.com/xuperchain/xupercore/lib/logs"
 	"google.golang.org/grpc"
+
+	sconf "github.com/xuperchain/xuperos/common/config"
+	def "github.com/xuperchain/xuperos/common/def"
+	"github.com/xuperchain/xuperos/common/pb"
 )
 
 type Gateway struct {
