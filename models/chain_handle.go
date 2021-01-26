@@ -41,10 +41,6 @@ func NewChainHandle(bcName string, reqCtx sctx.ReqCtx) (*ChainHandle, error) {
 	return obj, nil
 }
 
-func (t *ChainHandle) GetCrypto() *cryptoBase.CryptoClient {
-	return t.chain.Context().Crypto
-}
-
 func (t *ChainHandle) SubmitTx(tx *lpb.Transaction) error {
 	return t.chain.SubmitTx(t.genXctx(), tx)
 }
@@ -69,6 +65,36 @@ func (t *ChainHandle) SelectUtxo(account string, need *big.Int, isLock, isExclud
 
 	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).SelectUTXO(account, need,
 		isLock, isExclude)
+}
+
+func (t *ChainHandle) SelectUTXOBySize(account string, isLock, isExclude bool,
+	pubKey string, sign []byte) (*lpb.UtxoOutput, error) {
+	// 如果需要临时锁定utxo，需要校验权限
+	ok := t.checkSelectUtxoSign(account, pubKey, sign, isLock, big.NewInt(0))
+	if !ok {
+		rctx.GetLog().Warn("select utxo verify sign failed", "account", account, "isLock", isLock)
+		return resp, ecom.ErrUnauthorized
+	}
+
+	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).SelectUTXOBySize(account,
+		isLock, isExclude)
+}
+
+func (t *ChainHandle) QueryContractStatData() (*protos.ContractStatData, error) {
+	return reader.NewContractReader(t.chain.Context(), t.genXctx()).QueryContractStatData()
+}
+
+func (t *ChainHandle) QueryUtxoRecord(account string, count int64) (*lpb.UtxoRecordDetail, error) {
+	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).QueryUtxoRecord(account, count)
+}
+
+func (t *ChainHandle) QueryAccountACL(account string) (*protos.Acl, error) {
+	return reader.NewContractReader(t.chain.Context(), t.genXctx()).QueryAccountACL(account)
+}
+
+func (t *ChainHandle) QueryContractMethodACL(contract, method string) (*protos.Acl, error) {
+	return reader.NewContractReader(t.chain.Context(),
+		t.genXctx()).QueryContractMethodACL(contract, method)
 }
 
 func (t *ChainHandle) QueryBlock(blkId []byte, needContent bool) (*xpb.BlockInfo, error) {
