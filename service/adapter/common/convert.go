@@ -185,3 +185,48 @@ func UtxoListToXchain(utxoList []*xldgpb.Utxo) ([]*pb.Utxo, error) {
 
 	return tmpList, nil
 }
+
+func UtxoRecordToXchain(record *xldgpb.UtxoRecord) *pb.UtxoRecord {
+	if record == nil {
+		return nil
+	}
+
+	newRecord := &pb.UtxoRecord{
+		UtxoCount:  record.GetUtxoCount(),
+		UtxoAmount: record.GetUtxoAmount(),
+	}
+	if record.GetItem() == nil {
+		return newRecord
+	}
+
+	newRecord.Item = make([]*pb.UtxoKey, len(record.GetItem()))
+	for _, item := range record.GetItem() {
+		tmp := &pb.UtxoKey{
+			RefTxid: item.GetRefTxid(),
+			Offset:  item.GetOffset(),
+			Amount:  item.GetAmount(),
+		}
+		newRecord.Item = append(newRecord.Item, tmp)
+	}
+
+	return newRecord
+}
+
+func AclToXchain(acl *xldgpb.Acl) *pb.Acl {
+	if acl == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(acl)
+	if err != nil {
+		return nil
+	}
+
+	var tmp pb.Acl
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}

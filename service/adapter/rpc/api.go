@@ -10,6 +10,7 @@ import (
 	"github.com/xuperchain/xupercore/kernel/engines/xuperos/reader"
 	"github.com/xuperchain/xupercore/kernel/network/p2p"
 	"github.com/xuperchain/xupercore/protos"
+	acom "github.com/xuperchain/xuperos/service/adapter/common"
 
 	rctx "github.com/xuperchain/xuperos/common/context"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
@@ -33,7 +34,7 @@ func (t *RpcServ) PostTx(gctx context.Context, req *pb.TxStatus) (*pb.CommonRepl
 		rctx.GetLog().Warn("param error,some param unset")
 		return resp, ecom.ErrParameter
 	}
-	tx := TxToXledger(req.GetTx())
+	tx := acom.TxToXledger(req.GetTx())
 	if tx == nil {
 		rctx.GetLog().Warn("param error,tx convert to xledger tx failed")
 		return resp, ecom.ErrParameter
@@ -63,7 +64,7 @@ func (t *RpcServ) PreExec(gctx context.Context, req *pb.InvokeRPCRequest) (*pb.I
 		rctx.GetLog().Warn("param error,some param unset")
 		return resp, ecom.ErrParameter
 	}
-	reqs, err := ConvertInvokeReq(req.GetRequests())
+	reqs, err := acom.ConvertInvokeReq(req.GetRequests())
 	if err != nil {
 		rctx.GetLog().Warn("param error, convert failed", "err", err)
 		return resp, ecom.ErrParameter
@@ -81,7 +82,7 @@ func (t *RpcServ) PreExec(gctx context.Context, req *pb.InvokeRPCRequest) (*pb.I
 	// 设置响应
 	if err == nil {
 		resp.Bcname = req.GetBcname()
-		resp.Response = ConvertInvokeResp(res)
+		resp.Response = acom.ConvertInvokeResp(res)
 	}
 
 	return resp, err
@@ -166,7 +167,7 @@ func (t *RpcServ) SelectUTXO(gctx context.Context, req *pb.UtxoInput) (*pb.UtxoO
 		return resp, err
 	}
 
-	utxoList, err := UtxoListToXchain(out.GetUtxoList())
+	utxoList, err := acom.UtxoListToXchain(out.GetUtxoList())
 	if err != nil {
 		rctx.GetLog().Warn("convert utxo failed", "err", err)
 		return resp, ecom.ErrInternal
@@ -178,113 +179,154 @@ func (t *RpcServ) SelectUTXO(gctx context.Context, req *pb.UtxoInput) (*pb.UtxoO
 }
 
 // SelectUTXOBySize select utxo inputs depending on size
-func (s *RpcServ) SelectUTXOBySize(ctx context.Context, in *pb.UtxoInput) (*pb.UtxoOutput, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.UtxoResponse{Header: defRespHeader(in.Header)}
+func (t *RpcServ) SelectUTXOBySize(ctx context.Context, in *pb.UtxoInput) (*pb.UtxoOutput, error) {
+	// 默认响应
+	resp := &pb.UtxoOutput{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
 
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	response, err := utxoReader.SelectUTXOBySize(in.GetAddress(), in.GetNeedLock(), false)
-	if err != nil {
-		out.Header.Error = ErrorEnum(err)
-		reqCtx.GetLog().Warn("failed to select utxo", "error", err)
-		return out, err
+	if req == nil || req.GetBcname() == "" {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
 	}
 
-	out.UtxoList = response.UtxoList
-	out.TotalSelected = response.TotalSelected
-	reqCtx.GetLog().SetInfoField("totalSelect", out.TotalSelected)
-	return out, nil
+	// select utxo
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
+	if err != nil {
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, err
+	}
+	out, err := handle.SelectUTXOBySize(req.GetAddress(), req.GetNeedLock(), false,
+		req.GetPublickey(), req.GetUserSign())
+	if err != nil {
+		rctx.GetLog().Warn("select utxo failed", "err", err.Error())
+		return resp, err
+	}
+
+	utxoList, err := acom.UtxoListToXchain(out.GetUtxoList())
+	if err != nil {
+		rctx.GetLog().Warn("convert utxo failed", "err", err)
+		return resp, ecom.ErrInternal
+	}
+
+	resp.UtxoList = utxoList
+	resp.TotalSelected = out.GetTotalSelected()
+	return resp, nil
 }
 
 // QueryContractStatData query statistic info about contract
-func (s *RpcServ) QueryContractStatData(ctx context.Context, in *pb.ContractStatDataRequest) (*pb.ContractStatDataResponse, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.ContractStatDataResponse{Header: defRespHeader(in.Header)}
+func (t *RpcServ) QueryContractStatData(gctx context.Context,
+	req *pb.ContractStatDataRequest) (*pb.ContractStatDataResponse, error) {
+	// 默认响应
+	resp := &pb.ContractStatDataResponse{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
 
-	chain, err := s.engine.Get(in.GetBcname())
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
-		return out, err
+	if req == nil || req.GetBcname() == "" {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
 	}
 
-	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
-	contractStatData, err := contractReader.QueryContractStatData()
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
 	if err != nil {
-		return nil, err
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, err
+	}
+	res, err := handle.QueryContractStatData()
+	if err != nil {
+		rctx.GetLog().Warn("query contract stat data failed", "err", err.Error())
+		return resp, err
 	}
 
-	out.Data = contractStatData
-	return out, nil
+	resp.Bcname = req.GetBcname()
+	resp.Data = &pb.ContractStatData{
+		AccountCount:  res.GetAccountCount(),
+		ContractCount: res.GetContractCount(),
+	}
+
+	return resp, nil
 }
 
 // QueryUtxoRecord query utxo records
-func (s *RpcServ) QueryUtxoRecord(ctx context.Context, in *pb.UtxoRecordDetails) (*pb.UtxoRecordDetails, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.UtxoRecordDetails{Header: defRespHeader(in.Header)}
+func (t *RpcServ) QueryUtxoRecord(gctx context.Context,
+	req *pb.UtxoRecordDetails) (*pb.UtxoRecordDetails, error) {
 
-	chain, err := s.engine.Get(in.GetBcname())
+	// 默认响应
+	resp := &pb.UtxoRecordDetails{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
+
+	if req == nil || req.GetBcname() == "" {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
+	}
+
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
 	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
-		return out, err
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, err
+	}
+	res, err := handle.QueryUtxoRecord(req.GetAccountName(), req.GetDisplayCount())
+	if err != nil {
+		rctx.GetLog().Warn("query utxo record failed", "err", err.Error())
+		return resp, err
 	}
 
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	if len(in.GetAccountName()) > 0 {
-		utxoRecord, err := utxoReader.QueryUtxoRecord(in.GetAccountName(), in.GetDisplayCount())
-		if err != nil {
-			reqCtx.GetLog().Warn("query utxo record error", "account", in.GetAccountName())
-			return out, err
-		}
+	resp.Bcname = req.GetBcname()
+	resp.AccountName = req.GetAccountName()
+	resp.OpenUtxoRecord = acom.UtxoRecordToXchain(res.GetOpenUtxo())
+	resp.LockedUtxoRecord = acom.UtxoRecordToXchain(res.GetLockedUtxo())
+	resp.FrozenUtxoRecord = acom.UtxoRecordToXchain(res.GetFrozenUtxo())
+	resp.DisplayCount = req.GetDisplayCount()
 
-		out.FrozenUtxoRecord = utxoRecord.FrozenUtxo
-		out.LockedUtxoRecord = utxoRecord.LockedUtxo
-		out.OpenUtxoRecord = utxoRecord.OpenUtxo
-		return out, nil
-	}
-
-	return out, nil
+	return resp, nil
 }
 
 // QueryACL query some account info
-func (s *RpcServ) QueryACL(ctx context.Context, in *pb.AclStatus) (*pb.AclStatus, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.AclStatus{Header: defRespHeader(in.Header)}
+func (t *RpcServ) QueryACL(gctx context.Context, req *pb.AclStatus) (*pb.AclStatus, error) {
+	// 默认响应
+	resp := &pb.AclStatus{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
 
-	chain, err := s.engine.Get(in.GetBcname())
+	if req == nil || req.GetBcname() == "" {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
+	}
+	if len(req.GetAccountName()) < 1 && (len(req.GetContractName()) < 1 || len(req.GetMethodName()) < 1) {
+		rctx.GetLog().Warn("param error,unset name")
+		return resp, ecom.ErrParameter
+	}
+
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
 	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
-		return out, err
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, err
 	}
 
-	contractReader := reader.NewContractReader(chain.Context(), reqCtx)
-	accountName := in.GetAccountName()
-	contractName := in.GetContractName()
-	methodName := in.GetMethodName()
-	if len(accountName) > 0 {
-		acl, err := contractReader.QueryAccountACL(accountName)
-		if err != nil {
-			out.Confirmed = false
-			reqCtx.GetLog().Warn("query account acl error", "account", accountName)
-			return out, err
-		}
-		out.Confirmed = true
-		out.Acl = acl
-	} else if len(contractName) > 0 {
-		if len(methodName) > 0 {
-			acl, err := contractReader.QueryContractMethodACL(contractName, methodName)
-			if err != nil {
-				out.Confirmed = false
-				reqCtx.GetLog().Warn("query contract method acl error", "account", accountName, "method", methodName)
-				return out, err
-			}
-			out.Confirmed = true
-			out.Acl = acl
-		}
+	var aclRes *protos.Acl
+	if len(req.GetAccountName()) > 0 {
+		aclRes, err = handle.QueryAccountACL(req.GetAccountName())
+	} else if len(req.GetContractName()) > 0 && len(req.GetMethodName()) > 0 {
+		aclRes, err = handle.QueryContractMethodACL(req.GetContractName(), req.GetMethodName())
 	}
-	return out, nil
+	if err != nil {
+		rctx.GetLog().Warn("query acl failed", "err", err)
+		return resp, err
+	}
+	xchainAcl := acom.AclToXchain(aclRes)
+	if xchainAcl == nil {
+		rctx.GetLog().Warn("convert acl failed")
+		return resp, ecom.ErrInternal
+	}
+
+	resp.AccountName = req.GetAccountName()
+	resp.ContractName = req.GetContractName()
+	resp.MethodName = req.GetMethodName()
+	resp.Confirmed = true
+	resp.Acl = xchainAcl
+
+	return resp, nil
 }
 
 // GetAccountContracts get account request
