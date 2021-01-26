@@ -1,4 +1,4 @@
-package rpc
+package common
 
 import (
 	"github.com/golang/protobuf/proto"
@@ -7,16 +7,6 @@ import (
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/commom"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
-
-// 错误映射配置
-var StdErrToXchainErrMap = map[int]pb.XChainErrorEnum{
-	ecom.ErrSuccess.Code:      pb.XChainErrorEnum_SUCCESS,
-	ecom.ErrInternal.Code:     pb.XChainErrorEnum_UNKNOW_ERROR,
-	ecom.ErrUnknown.Code:      pb.XChainErrorEnum_UNKNOW_ERROR,
-	ecom.ErrForbidden.Code:    pb.XChainErrorEnum_CONNECT_REFUSE,
-	ecom.ErrUnauthorized.Code: pb.XChainErrorEnum_CONNECT_REFUSE,
-	ecom.ErrParameter.Code:    pb.XChainErrorEnum_CONNECT_REFUSE,
-}
 
 // 为了完全兼容老版本pb结构，转换交易结构
 func TxToXledger(tx *pb.Transaction) *xldgpb.Transaction {
@@ -96,4 +86,102 @@ func BlockToXchain(block *xldgpb.InternalBlock) *pb.InternalBlock {
 	}
 
 	return &newBlock
+}
+
+func ConvertInvokeReq(reqs []*InvokeRequest) ([]*protos.InvokeRequest, error) {
+	if reqs == nil {
+		return nil
+	}
+
+	newReqs := make([]*protos.InvokeRequest, len(reqs))
+	for _, req := range reqs {
+		buf, err := proto.Marshal(req)
+		if err != nil {
+			return nil, err
+		}
+
+		var tmp protos.InvokeRequest
+		err = proto.Unmarshal(buf, &tmp)
+		if err != nil {
+			return nil, err
+		}
+
+		newReqs = append(newReqs, &tmp)
+	}
+
+	return newReqs, nil
+}
+
+func ConvertInvokeResp(resp *protos.InvokeResponse) *pb.InvokeResponse {
+	if resp == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(resp)
+	if err != nil {
+		return nil
+	}
+
+	var tmp pb.InvokeResponse
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}
+
+func UtxoToXchain(utxo *xldgpb.Utxo) *pb.Utxo {
+	if utxo == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(utxo)
+	if err != nil {
+		return nil
+	}
+
+	var tmp pb.Utxo
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}
+
+func UtxoToXledger(utxo *pb.Utxo) *xldgpb.Utxo {
+	if utxo == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(utxo)
+	if err != nil {
+		return nil
+	}
+
+	var tmp xldgpb.Utxo
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}
+
+func UtxoListToXchain(utxoList []*xldgpb.Utxo) ([]*pb.Utxo, error) {
+	if utxoList == nil {
+		return nil, nil
+	}
+
+	tmpList := make([]*pb.Utxo, len(utxoList))
+	for _, utxo := range utxoList {
+		tmp := UtxoToXchain(utxo)
+		if tmp == nil {
+			return nil, fmt.Errorf("convert utxo failed")
+		}
+		tmpList = append(tmpList, tmp)
+	}
+
+	return tmpList, nil
 }
