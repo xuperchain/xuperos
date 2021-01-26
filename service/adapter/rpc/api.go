@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strconv"
 
-	ledger "github.com/xuperchain/xupercore/bcs/ledger/xledger/xldgpb"
+	"github.com/xuperchain/xupercore/bcs/ledger/xledger/xldgpb"
 	"github.com/xuperchain/xupercore/kernel/engines/xuperos/reader"
 	"github.com/xuperchain/xupercore/kernel/network/p2p"
 	"github.com/xuperchain/xupercore/protos"
@@ -22,7 +22,7 @@ import (
 // 4.rpc接口可以调用log库提供的SetInfoField方法附加输出到ending log
 
 // PostTx post transaction to blockchain network
-func (s *RpcServ) PostTx(gctx context.Context, req *pb.TxStatus) (*pb.CommonReply, error) {
+func (t *RpcServ) PostTx(gctx context.Context, req *pb.TxStatus) (*pb.CommonReply, error) {
 	// 默认响应
 	resp := &pb.CommonReply{}
 	// 获取请求上下文，对内传递rctx
@@ -52,126 +52,135 @@ func (s *RpcServ) PostTx(gctx context.Context, req *pb.TxStatus) (*pb.CommonRepl
 }
 
 // PreExec smart contract preExec process
-func (s *RpcServ) PreExec(ctx context.Context, in *pb.InvokeRPCRequest) (*pb.InvokeRPCResponse, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.InvokeRPCResponse{Header: defRespHeader(in.Header)}
+func (t *RpcServ) PreExec(gctx context.Context, req *pb.InvokeRPCRequest) (*pb.InvokeRPCResponse, error) {
+	// 默认响应
+	resp := &pb.InvokeRPCResponse{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
 
-	chain, err := s.engine.Get(in.GetBcname())
+	// 校验参数
+	if req == nil || req.GetBcname() == "" || len(req.GetRequests()) < 1 {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
+	}
+	reqs, err := ConvertInvokeReq(req.GetRequests())
 	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
-		return out, err
+		rctx.GetLog().Warn("param error, convert failed", "err", err)
+		return resp, ecom.ErrParameter
 	}
 
-	response, err := chain.PreExec(reqCtx, in.GetRequests(), in.GetInitiator(), in.GetAuthRequire())
+	// 预执行
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
 	if err != nil {
-		reqCtx.GetLog().Warn("PreExec error", "error", err)
-		return nil, err
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, err
+	}
+	res, err := handle.PreExec(reqs, req.GetInitiator(), req.GetAuthRequire())
+	rctx.GetLog().SetInfoField("bc_name", req.GetBcname())
+	rctx.GetLog().SetInfoField("initiator", req.GetInitiator())
+	// 设置响应
+	if err == nil {
+		resp.Bcname = req.GetBcname()
+		resp.Response = ConvertInvokeResp(res)
 	}
 
-	out.Response = response
-	return out, nil
+	return resp, err
 }
 
 // PreExecWithSelectUTXO preExec + selectUtxo
-func (s *RpcServ) PreExecWithSelectUTXO(ctx context.Context, in *pb.PreExecWithSelectUTXORequest) (*pb.PreExecWithSelectUTXOResponse, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.PreExecWithSelectUTXOResponse{Header: defRespHeader(in.Header), Bcname: in.GetBcname()}
+func (t *RpcServ) PreExecWithSelectUTXO(gctx context.Context,
+	req *pb.PreExecWithSelectUTXORequest) (*pb.PreExecWithSelectUTXOResponse, error) {
 
-	chain, err := s.engine.Get(in.GetBcname())
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("block chain not exists", "bc", in.GetBcname())
-		return out, err
+	// 默认响应
+	resp := &pb.PreExecWithSelectUTXOResponse{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
+
+	if req == nil || req.GetBcname() == "" || len(req.GetRequest()) < 1 {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
 	}
 
 	// PreExec
-	preExecRequest := in.GetRequest()
-	fee := int64(0)
-	if preExecRequest != nil {
-		preExecRequest.Header = in.Header
-		invokeRPCResponse, err := s.PreExec(ctx, preExecRequest)
-		if err != nil {
-			return nil, err
-		}
-		invokeResponse := invokeRPCResponse.GetResponse()
-		out.Response = invokeResponse
-		fee = out.Response.GetGasUsed()
+	preExecRes, err := t.PreExec(gctx, req.GetRequest())
+	if err != nil {
+		rctx.GetLog().Warn("pre exec failed", "err", err)
+		return resp, err
 	}
 
 	// SelectUTXO
-	totalAmount := in.GetTotalAmount() + fee
-	if totalAmount > 0 {
-		utxoInput := &pb.UtxoRequest{
-			Bcname:    in.GetBcname(),
-			Address:   in.GetAddress(),
-			TotalNeed: strconv.FormatInt(totalAmount, 10),
-			Publickey: in.GetSignInfo().GetPublicKey(),
-			UserSign:  in.GetSignInfo().GetSign(),
-			NeedLock:  in.GetNeedLock(),
-		}
-
-		if ok := validUtxoAccess(utxoInput, chain.Context().Crypto, in.GetTotalAmount()); !ok {
-			return nil, errors.New("validUtxoAccess failed")
-		}
-
-		utxoOutput, err := s.SelectUTXO(ctx, utxoInput)
-		if err != nil {
-			return nil, err
-		}
-
-		out.UtxoOutput = &ledger.UtxoOutput{
-			UtxoList:      utxoOutput.UtxoList,
-			TotalSelected: utxoOutput.TotalSelected,
-		}
+	totalAmount := req.GetTotalAmount() + preExecRes.GetResponse().GetGasUsed()
+	if totalAmount < 1 {
+		return resp, nil
 	}
+	utxoInput := &pb.UtxoInput{
+		Header:    req.GetHeader(),
+		Bcname:    req.GetBcname(),
+		Address:   req.GetAddress(),
+		Publickey: req.GetSignInfo().GetPublicKey(),
+		TotalNeed: big.NewInt(totalAmount).String(),
+		UserSign:  req.GetSignInfo().GetSign(),
+		NeedLock:  req.GetNeedLock(),
+	}
+	utxoOut, err := t.SelectUTXO(gctx, utxoInput)
+	if err != nil {
+		return resp, err
+	}
+	utxoOut.Header = req.GetHeader()
 
-	return out, nil
+	// 设置响应
+	resp.Bcname = req.GetBcname()
+	resp.Response = preExecRes.GetResponse()
+	resp.UtxoOutput = utxoOut
+
+	return resp, nil
 }
 
 // SelectUTXO select utxo inputs depending on amount
-func (s *RpcServ) SelectUTXO(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
-	reqCtx := rctx.ReqCtxFromContext(ctx)
-	out := &pb.UtxoResponse{Header: defRespHeader(in.Header)}
+func (t *RpcServ) SelectUTXO(gctx context.Context, req *pb.UtxoInput) (*pb.UtxoOutput, error) {
+	// 默认响应
+	resp := &pb.UtxoOutput{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
 
-	totalNeed, ok := new(big.Int).SetString(in.TotalNeed, 10)
+	if req == nil || req.GetBcname() == "" || req.GetTotalNeed() == "" {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
+	}
+	totalNeed, ok := new(big.Int).SetString(req.GetTotalNeed(), 10)
 	if !ok {
-		out.Header.Error = pb.XChainErrorEnum_CONNECT_REFUSE // 拒绝
-		return out, nil
+		rctx.GetLog().Warn("param error,total need set error", "totalNeed", req.GetTotalNeed())
+		return resp, ecom.ErrParameter
 	}
 
-	chain, err := s.engine.Get(in.GetBcname())
+	// select utxo
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
 	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("failed to select utxo, bcname not exists", "bcName", in.GetBcname())
-		return out, err
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, err
 	}
-
-	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
-	response, err := utxoReader.SelectUTXO(in.GetAddress(), totalNeed, in.GetNeedLock(), false)
+	out, err := handle.SelectUtxo(req.GetAddress(), totalNeed, req.GetNeedLock(), false,
+		req.GetPublickey(), req.GetUserSign())
 	if err != nil {
-		out.Header.Error = ErrorEnum(err)
-		reqCtx.GetLog().Warn("failed to select utxo", "error", err)
-		return out, err
+		rctx.GetLog().Warn("select utxo failed", "err", err.Error())
+		return resp, err
 	}
 
-	out.UtxoList = response.UtxoList
-	out.TotalSelected = response.TotalSelected
-	reqCtx.GetLog().SetInfoField("totalSelect", out.TotalSelected)
-	return out, nil
+	utxoList, err := UtxoListToXchain(out.GetUtxoList())
+	if err != nil {
+		rctx.GetLog().Warn("convert utxo failed", "err", err)
+		return resp, ecom.ErrInternal
+	}
+
+	resp.UtxoList = utxoList
+	resp.TotalSelected = out.GetTotalSelected()
+	return resp, nil
 }
 
 // SelectUTXOBySize select utxo inputs depending on size
-func (s *RpcServ) SelectUTXOBySize(ctx context.Context, in *pb.UtxoRequest) (*pb.UtxoResponse, error) {
+func (s *RpcServ) SelectUTXOBySize(ctx context.Context, in *pb.UtxoInput) (*pb.UtxoOutput, error) {
 	reqCtx := rctx.ReqCtxFromContext(ctx)
 	out := &pb.UtxoResponse{Header: defRespHeader(in.Header)}
-
-	chain, err := s.engine.Get(in.GetBcname())
-	if err != nil {
-		out.Header.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-		reqCtx.GetLog().Warn("failed to merge utxo, bcname not exists", "logid", in.Header.Logid)
-		return out, err
-	}
 
 	utxoReader := reader.NewUtxoReader(chain.Context(), reqCtx)
 	response, err := utxoReader.SelectUTXOBySize(in.GetAddress(), in.GetNeedLock(), false)
