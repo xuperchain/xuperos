@@ -79,7 +79,7 @@ func NewCli() *Cli {
 }
 
 func xchainVersion() string {
-	return fmt.Sprintf("%s-%s %s", buildVersion, commitHash, buildDate)
+	return fmt.Sprintf("%s-%s %s", Version, CommitID, BuildTime)
 }
 
 func (c *Cli) initXchainClient() error {

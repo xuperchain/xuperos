@@ -7,9 +7,9 @@ package main
 import "log"
 
 var (
-	buildVersion = ""
-	buildDate    = ""
-	commitHash   = ""
+	Version   = ""
+	BuildTime = ""
+	CommitID  = ""
 )
 
 func main() {
