@@ -1,7 +1,9 @@
 package common
 
 import (
+	"fmt"
 	"github.com/golang/protobuf/proto"
+	"github.com/xuperchain/xupercore/protos"
 
 	"github.com/xuperchain/xupercore/bcs/ledger/xledger/xldgpb"
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/commom"
@@ -223,6 +225,122 @@ func AclToXchain(acl *xldgpb.Acl) *pb.Acl {
 	}
 
 	var tmp pb.Acl
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}
+
+func ContractStatusToXchain(contractStatus *protos.ContractStatus) *pb.ContractStatus {
+	if contractStatus == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(contractStatus)
+	if err != nil {
+		return nil
+	}
+
+	var tmp pb.ContractStatus
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}
+
+func ContractStatusListToXchain(contractStatusList []*protos.ContractStatus) ([]*pb.ContractStatus, error) {
+	if contractStatusList == nil {
+		return nil, nil
+	}
+
+	tmpList := make([]*pb.ContractStatus, len(contractStatusList))
+	for _, cs := range contractStatusList {
+		tmp := ContractStatusToXchain(cs)
+		if tmp == nil {
+			return nil, fmt.Errorf("convert contract status failed")
+		}
+		tmpList = append(tmpList, tmp)
+	}
+
+	return tmpList, nil
+}
+
+func TransactionStatusToXchain(status xldgpb.TransactionStatus) pb.TransactionStatus {
+	var tmpStatus int32
+	tmpStatus = status
+	return tmpStatus
+}
+
+func BalanceDetailToXchain(detail *xldgpb.BalanceDetailInfo) *pb.TokenFrozenDetail {
+	if detail == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(contractStatus)
+	if err != nil {
+		return nil
+	}
+
+	var tmp pb.TokenFrozenDetail
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}
+
+func BalanceDetailsToXchain(details []*xldgpb.BalanceDetailInfo) ([]*pb.TokenFrozenDetail, error) {
+	if details == nil {
+		return nil, nil
+	}
+
+	tmpList := make([]*pb.TokenFrozenDetail, len(details))
+	for _, detail := range details {
+		tmp := BalanceDetailToXchain(detail)
+		if tmp == nil {
+			return nil, fmt.Errorf("convert balance detail failed")
+		}
+		tmpList = append(tmpList, tmp)
+	}
+
+	return tmpList, nil
+}
+
+func LedgerMetaToXchain(meta *xldgpb.LedgerMeta) *pb.LedgerMeta {
+	if meta == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(meta)
+	if err != nil {
+		return nil
+	}
+
+	var tmp pb.LedgerMeta
+	err = proto.Unmarshal(buf, &tmp)
+	if err != nil {
+		return nil
+	}
+
+	return &tmp
+}
+
+func UtxoMetaToXchain(meta *xldgpb.UtxoMeta) *pb.UtxoMeta {
+	if meta == nil {
+		return nil
+	}
+
+	buf, err := proto.Marshal(meta)
+	if err != nil {
+		return nil
+	}
+
+	var tmp pb.UtxoMeta
 	err = proto.Unmarshal(buf, &tmp)
 	if err != nil {
 		return nil
