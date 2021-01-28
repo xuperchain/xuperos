@@ -1,5 +1,10 @@
 package common
 
+import (
+	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
+	"github.com/xuperchain/xuperos/common/xupospb/pb"
+)
+
 // 错误映射配置
 var StdErrToXchainErrMap = map[int]pb.XChainErrorEnum{
 	ecom.ErrSuccess.Code:      pb.XChainErrorEnum_SUCCESS,

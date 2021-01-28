@@ -44,7 +44,7 @@ function buildpkg() {
 buildpkg xuperos "$HOMEDIR/cmd/xuperos/main.go"
 # buildpkg xuperos-cli "$HOMEDIR/cmd/client/main.go"
 # adapetr client
-buildpkg xchain-cli "$HOMEDIR/cmd/adapter/cli/main.go"
+buildpkg xchain-cli "$HOMEDIR/cmd/adapter/main.go"
 
 # build output
 cp -r "$HOMEDIR/conf" "$OUTDIR"

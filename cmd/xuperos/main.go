@@ -28,12 +28,12 @@ func main() {
 
 func NewServiceCommand() (*cobra.Command, error) {
 	rootCmd := &cobra.Command{
-		Use:           "xchain <command> [arguments]",
-		Short:         "xchain is a blockchain network building service.",
-		Long:          "xchain is a blockchain network building service.",
+		Use:           "xuperos <command> [arguments]",
+		Short:         "xuperos is a blockchain network building service.",
+		Long:          "xuperos is a blockchain network building service.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Example:       "xchain startup --conf /home/rd/xchain/conf/env.yaml",
+		Example:       "xuperos startup --conf /home/rd/xuperos/conf/env.yaml",
 	}
 
 	// cmd service
@@ -54,7 +54,7 @@ func GetVersionCmd() *versionCmd {
 	subCmd := &cobra.Command{
 		Use:     "version",
 		Short:   "view process version information.",
-		Example: "xchain version",
+		Example: "xuperos version",
 		Run: func(cmd *cobra.Command, args []string) {
 			versionCmdIns.PrintVersion()
 		},

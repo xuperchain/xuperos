@@ -10,21 +10,20 @@ import (
 	pb "github.com/xuperchain/xuperos/common/xupospb"
 
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
-	edef "github.com/xuperchain/xupercore/kernel/engines/xuperos/def"
 	"github.com/xuperchain/xupercore/lib/logs"
 	"github.com/xuperchain/xupercore/lib/utils"
-	sctx "github.com/xuperchain/xupercore/server/context"
+	sctx "github.com/xuperchain/xuperos/common/context"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 )
 
 type RpcServ struct {
-	engine edef.Engine
+	engine ecom.Engine
 	log    logs.Logger
 }
 
-func NewRpcServ(engine edef.Engine, log logs.Logger) *RpcServ {
+func NewRpcServ(engine ecom.Engine, log logs.Logger) *RpcServ {
 	return &RpcServ{
 		engine: engine,
 		log:    log,

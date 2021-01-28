@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 
+	sctx "github.com/xuperchain/xupercore/example/xchain/common/context"
 	pb "github.com/xuperchain/xuperos/common/xupospb"
 )
 

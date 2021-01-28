@@ -16,6 +16,7 @@ import (
 	"github.com/xuperchain/xupercore/lib/utils"
 
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
+	acom "github.com/xuperchain/xuperos/service/adapter/common"
 )
 
 type RpcServ struct {
@@ -96,9 +97,9 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
-func (t *RpcServ) defReqHeader() *pb.ReqHeader {
-	return &pb.ReqHeader{
-		LogId:    utils.GenLogId(),
+func (t *RpcServ) defReqHeader() *pb.Header {
+	return &pb.Header{
+		Logid:    utils.GenLogId(),
 		FromNode: "",
 		Error:    pb.XChainErrorEnum_UNKNOW_ERROR,
 	}
@@ -147,7 +148,7 @@ func (t *RpcServ) convertErr(stdErr *ecom.Error) pb.XChainErrorEnum {
 		return pb.XChainErrorEnum_UNKNOW_ERROR
 	}
 
-	if errCode, ok := StdErrToXchainErrMap[stdErr.Code]; ok {
+	if errCode, ok := acom.StdErrToXchainErrMap[stdErr.Code]; ok {
 		return errCode
 	}
 

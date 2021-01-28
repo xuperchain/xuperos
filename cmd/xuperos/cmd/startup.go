@@ -6,16 +6,26 @@ import (
 	"sync"
 	"syscall"
 
+	econf "github.com/xuperchain/xupercore/kernel/common/xconfig"
+	"github.com/xuperchain/xupercore/kernel/engines"
+	"github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
+	"github.com/xuperchain/xupercore/lib/logs"
 	sconf "github.com/xuperchain/xuperos/common/config"
 	"github.com/xuperchain/xuperos/service"
-	"github.com/xuperchain/xuperos/service/rpc"
 
-	"github.com/xuperchain/xupercore/kernel/engines"
-	econf "github.com/xuperchain/xupercore/kernel/engines/config"
-	"github.com/xuperchain/xupercore/kernel/engines/xuperos/def"
-	"github.com/xuperchain/xupercore/lib/logs"
 	// import要使用的内核核心组件驱动
+	_ "github.com/xuperchain/xupercore/bcs/consensus/pow"
+	_ "github.com/xuperchain/xupercore/bcs/consensus/single"
+	_ "github.com/xuperchain/xupercore/bcs/consensus/tdpos"
+	_ "github.com/xuperchain/xupercore/bcs/consensus/xpoa"
+	_ "github.com/xuperchain/xupercore/bcs/contract/native"
+	_ "github.com/xuperchain/xupercore/bcs/contract/xvm"
+	_ "github.com/xuperchain/xupercore/bcs/network/p2pv1"
 	_ "github.com/xuperchain/xupercore/bcs/network/p2pv2"
+	_ "github.com/xuperchain/xupercore/kernel/contract/kernel"
+	_ "github.com/xuperchain/xupercore/kernel/contract/manager"
+	_ "github.com/xuperchain/xupercore/lib/crypto/client"
+	_ "github.com/xuperchain/xupercore/lib/storage/kvdb/leveldb"
 
 	"github.com/spf13/cobra"
 )
@@ -30,26 +40,26 @@ func GetStartupCmd() *StartupCmd {
 	// 定义命令行参数变量
 	var envCfgPath string
 
-	startupCmdIns.cmd = &cobra.Command{
+	startupCmdIns.Cmd = &cobra.Command{
 		Use:           "startup",
 		Short:         "Start up the blockchain node service.",
 		Example:       "xuperos startup --conf /home/rd/xuperos/conf/env.yaml",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return StartupXuperos(envCfgPath)
+			return StartupXchain(envCfgPath)
 		},
 	}
 
 	// 设置命令行参数并绑定变量
-	startupCmdIns.cmd.Flags().StringVarP(&envCfgPath, "conf", "c", "",
+	startupCmdIns.Cmd.Flags().StringVarP(&envCfgPath, "conf", "c", "",
 		"engine environment config file path")
 
 	return startupCmdIns
 }
 
 // 启动节点
-func StartupXuperos(envCfgPath string) error {
+func StartupXchain(envCfgPath string) error {
 	// 加载基础配置
 	envConf, servConf, err := loadConf(envCfgPath)
 	if err != nil {
@@ -60,7 +70,7 @@ func StartupXuperos(envCfgPath string) error {
 	logs.InitLog(envConf.GenConfFilePath(envConf.LogConf), envConf.GenDirAbsPath(envConf.LogDir))
 
 	// 实例化区块链引擎
-	engine, err := engines.CreateBCEngine(def.BCEngineName, envConf)
+	engine, err := engines.CreateBCEngine(common.BCEngineName, envConf)
 	if err != nil {
 		return err
 	}
@@ -84,11 +94,11 @@ func StartupXuperos(envCfgPath string) error {
 		for {
 			select {
 			case <-engChan:
+				wg.Done()
 				serv.Exit()
+			case <-servChan:
 				wg.Done()
-			case <-rpcChan:
 				engine.Exit()
-				wg.Done()
 			case <-sigChan:
 				serv.Exit()
 				engine.Exit()
@@ -122,7 +132,7 @@ func runEngine(engine engines.BCEngine) <-chan bool {
 
 	// 启动引擎，监听退出信号
 	go func() {
-		engine.Start()
+		engine.Run()
 		exitCh <- true
 	}()
 

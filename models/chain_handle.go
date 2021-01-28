@@ -61,8 +61,8 @@ func (t *ChainHandle) SelectUtxo(account string, need *big.Int, isLock, isExclud
 	// 如果需要临时锁定utxo，需要校验权限
 	ok := t.checkSelectUtxoSign(account, pubKey, sign, isLock, need)
 	if !ok {
-		rctx.GetLog().Warn("select utxo verify sign failed", "account", account, "isLock", isLock)
-		return resp, ecom.ErrUnauthorized
+		t.reqCtx.GetLog().Warn("select utxo verify sign failed", "account", account, "isLock", isLock)
+		return nil, ecom.ErrUnauthorized
 	}
 
 	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).SelectUTXO(account, need,
@@ -74,8 +74,8 @@ func (t *ChainHandle) SelectUTXOBySize(account string, isLock, isExclude bool,
 	// 如果需要临时锁定utxo，需要校验权限
 	ok := t.checkSelectUtxoSign(account, pubKey, sign, isLock, big.NewInt(0))
 	if !ok {
-		rctx.GetLog().Warn("select utxo verify sign failed", "account", account, "isLock", isLock)
-		return resp, ecom.ErrUnauthorized
+		t.reqCtx.GetLog().Warn("select utxo verify sign failed", "account", account, "isLock", isLock)
+		return nil, ecom.ErrUnauthorized
 	}
 
 	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).SelectUTXOBySize(account,
@@ -108,7 +108,7 @@ func (t *ChainHandle) GetBalance(account string) (string, error) {
 	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).GetBalance(account)
 }
 
-func (t *ChainHandle) GetFrozenBalance(account stirng) (string, error) {
+func (t *ChainHandle) GetFrozenBalance(account string) (string, error) {
 	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).GetFrozenBalance(account)
 }
 
@@ -124,7 +124,7 @@ func (t *ChainHandle) QueryChainStatus() (*xpb.ChainStatus, error) {
 	return reader.NewChainReader(t.chain.Context(), t.genXctx()).GetChainStatus()
 }
 
-func (t *ChainHandle) IsTrunkTipBlock(blockId []byte) (bool, err) {
+func (t *ChainHandle) IsTrunkTipBlock(blockId []byte) (bool, error) {
 	return reader.NewChainReader(t.chain.Context(), t.genXctx()).IsTrunkTipBlock(blockId)
 }
 
@@ -133,7 +133,7 @@ func (t *ChainHandle) QueryBlockByHeight(height int64, needContent bool) (*xpb.B
 }
 
 func (t *ChainHandle) GetAccountByAK(address string) ([]string, error) {
-	return reader.NewContractReader(t.chain.Context(), t.genXctx()).GetAccountByAK(account)
+	return reader.NewContractReader(t.chain.Context(), t.genXctx()).GetAccountByAK(address)
 }
 
 func (t *ChainHandle) genXctx() xctx.XContext {
@@ -146,7 +146,7 @@ func (t *ChainHandle) genXctx() xctx.XContext {
 func (t *ChainHandle) checkSelectUtxoSign(account, pubKey string, sign []byte,
 	isLock bool, need *big.Int) bool {
 	// 只对需要临时锁定utxo的校验
-	if aclUtils.IsAccount(account) == 1 || !needLock {
+	if aclUtils.IsAccount(account) == 1 || !isLock {
 		return true
 	}
 
