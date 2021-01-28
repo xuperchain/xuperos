@@ -2,11 +2,11 @@ package common
 
 import (
 	"fmt"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/xuperchain/xupercore/protos"
 
 	"github.com/xuperchain/xupercore/bcs/ledger/xledger/xldgpb"
-	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/commom"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
@@ -90,9 +90,9 @@ func BlockToXchain(block *xldgpb.InternalBlock) *pb.InternalBlock {
 	return &newBlock
 }
 
-func ConvertInvokeReq(reqs []*InvokeRequest) ([]*protos.InvokeRequest, error) {
+func ConvertInvokeReq(reqs []*pb.InvokeRequest) ([]*protos.InvokeRequest, error) {
 	if reqs == nil {
-		return nil
+		return nil, nil
 	}
 
 	newReqs := make([]*protos.InvokeRequest, len(reqs))
@@ -214,7 +214,7 @@ func UtxoRecordToXchain(record *xldgpb.UtxoRecord) *pb.UtxoRecord {
 	return newRecord
 }
 
-func AclToXchain(acl *xldgpb.Acl) *pb.Acl {
+func AclToXchain(acl *protos.Acl) *pb.Acl {
 	if acl == nil {
 		return nil
 	}
@@ -282,7 +282,7 @@ func BalanceDetailToXchain(detail *xldgpb.BalanceDetailInfo) *pb.TokenFrozenDeta
 		return nil
 	}
 
-	buf, err := proto.Marshal(contractStatus)
+	buf, err := proto.Marshal(detail)
 	if err != nil {
 		return nil
 	}

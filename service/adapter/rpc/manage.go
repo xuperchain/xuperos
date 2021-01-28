@@ -65,7 +65,7 @@ func (t *RpcServMG) Run() error {
 		return errors.New("RpcServMG not init")
 	}
 
-	t.log.Trace("run grpc server", "isTls", t.cfg.EnableTls)
+	t.log.Trace("run grpc server", "isTls", t.scfg.EnableTls)
 
 	// 启动rpc server，阻塞直到退出
 	err := t.runRpcServ()
@@ -98,11 +98,11 @@ func (t *RpcServMG) runRpcServ() error {
 
 	rpcOptions := []grpc.ServerOption{
 		middleware.WithUnaryServerChain(unaryInterceptors...),
-		grpc.MaxRecvMsgSize(t.cfg.MaxMsgSize),
-		grpc.ReadBufferSize(t.cfg.ReadBufSize),
-		grpc.InitialWindowSize(t.cfg.InitWindowSize),
-		grpc.InitialConnWindowSize(t.cfg.InitConnWindowSize),
-		grpc.WriteBufferSize(t.cfg.WriteBufSize),
+		grpc.MaxRecvMsgSize(t.scfg.MaxMsgSize),
+		grpc.ReadBufferSize(t.scfg.ReadBufSize),
+		grpc.InitialWindowSize(t.scfg.InitWindowSize),
+		grpc.InitialConnWindowSize(t.scfg.InitConnWindowSize),
+		grpc.WriteBufferSize(t.scfg.WriteBufSize),
 	}
 
 	if t.scfg.EnableTls {
@@ -116,7 +116,7 @@ func (t *RpcServMG) runRpcServ() error {
 	t.servHD = grpc.NewServer(rpcOptions...)
 	pb.RegisterXchainServer(t.servHD, t.rpcServ)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("%d", t.cfg.RpcPort))
+	lis, err := net.Listen("tcp", fmt.Sprintf("%d", t.scfg.RpcPort))
 	if err != nil {
 		t.log.Error("failed to listen", "err", err)
 		return fmt.Errorf("failed to listen")

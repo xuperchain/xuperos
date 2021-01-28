@@ -95,7 +95,7 @@ func (t *RpcServ) PreExecWithSelectUTXO(gctx context.Context,
 	// 获取请求上下文，对内传递rctx
 	rctx := sctx.ValueReqCtx(gctx)
 
-	if req == nil || req.GetBcname() == "" || len(req.GetRequest()) < 1 {
+	if req == nil || req.GetBcname() == "" || req.GetRequest() == nil {
 		rctx.GetLog().Warn("param error,some param unset")
 		return resp, ecom.ErrParameter
 	}
@@ -401,7 +401,7 @@ func (t *RpcServ) QueryTx(gctx context.Context, req *pb.TxStatus) (*pb.TxStatus,
 
 	rctx.GetLog().SetInfoField("bc_name", req.GetBcname())
 	rctx.GetLog().SetInfoField("account", utils.F(req.GetTxid()))
-	return out, nil
+	return resp, nil
 }
 
 // GetBalance get balance for account or addr
@@ -506,7 +506,7 @@ func (t *RpcServ) GetBalanceDetail(gctx context.Context, req *pb.AddressBalanceS
 	}
 
 	rctx.GetLog().SetInfoField("account", req.GetAddress())
-	return in, nil
+	return resp, nil
 }
 
 // GetBlock get block info according to blockID
@@ -759,7 +759,7 @@ func (t *RpcServ) GetAccountByAK(gctx context.Context, req *pb.AK2AccountRequest
 
 	accounts, err := handle.GetAccountByAK(req.GetAddress())
 	if err != nil || accounts == nil {
-		rctx.GetLog().Warn("QueryAccountContainAK error", "logid", out.Header.Logid, "error", err)
+		rctx.GetLog().Warn("QueryAccountContainAK error", "error", err)
 		return resp, err
 	}
 

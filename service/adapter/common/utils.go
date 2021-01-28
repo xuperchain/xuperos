@@ -45,7 +45,7 @@ func MakeTxDigestHash(tx *pb.Transaction) ([]byte, error) {
 	}
 	digestHash, err := txhash.MakeTxDigestHash(xldgTx)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	return digestHash, nil
 }
