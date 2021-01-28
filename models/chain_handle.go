@@ -2,13 +2,15 @@ package models
 
 import (
 	"math/big"
+	"strconv"
 
 	lpb "github.com/xuperchain/xupercore/bcs/ledger/xledger/xldgpb"
 	xctx "github.com/xuperchain/xupercore/kernel/common/xcontext"
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
 	"github.com/xuperchain/xupercore/kernel/engines/xuperos/reader"
 	"github.com/xuperchain/xupercore/kernel/engines/xuperos/xpb"
-	cryptoBase "github.com/xuperchain/xupercore/lib/crypto/client/base"
+	aclUtils "github.com/xuperchain/xupercore/kernel/permission/acl/utils"
+	cryptoHash "github.com/xuperchain/xupercore/lib/crypto/hash"
 	"github.com/xuperchain/xupercore/lib/logs"
 	"github.com/xuperchain/xupercore/protos"
 
@@ -97,12 +99,41 @@ func (t *ChainHandle) QueryContractMethodACL(contract, method string) (*protos.A
 		t.genXctx()).QueryContractMethodACL(contract, method)
 }
 
+func (t *ChainHandle) GetAccountContracts(account string) ([]*protos.ContractStatus, error) {
+	return reader.NewContractReader(t.chain.Context(),
+		t.genXctx()).GetAccountContracts(account)
+}
+
+func (t *ChainHandle) GetBalance(account string) (string, error) {
+	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).GetBalance(account)
+}
+
+func (t *ChainHandle) GetFrozenBalance(account stirng) (string, error) {
+	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).GetFrozenBalance(account)
+}
+
+func (t *ChainHandle) GetBalanceDetail(account string) ([]*lpb.BalanceDetailInfo, error) {
+	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).GetBalanceDetail(account)
+}
+
 func (t *ChainHandle) QueryBlock(blkId []byte, needContent bool) (*xpb.BlockInfo, error) {
 	return reader.NewLedgerReader(t.chain.Context(), t.genXctx()).QueryBlock(blkId, needContent)
 }
 
-func (t *ChainHandle) QueryChainStatus(needBranch bool) (*xpb.ChainStatus, error) {
+func (t *ChainHandle) QueryChainStatus() (*xpb.ChainStatus, error) {
 	return reader.NewChainReader(t.chain.Context(), t.genXctx()).GetChainStatus()
+}
+
+func (t *ChainHandle) IsTrunkTipBlock(blockId []byte) (bool, err) {
+	return reader.NewChainReader(t.chain.Context(), t.genXctx()).IsTrunkTipBlock(blockId)
+}
+
+func (t *ChainHandle) QueryBlockByHeight(height int64, needContent bool) (*xpb.BlockInfo, error) {
+	return reader.NewLedgerReader(t.chain.Context(), t.genXctx()).QueryBlockByHeight(height, needContent)
+}
+
+func (t *ChainHandle) GetAccountByAK(address string) ([]string, error) {
+	return reader.NewContractReader(t.chain.Context(), t.genXctx()).GetAccountByAK(account)
 }
 
 func (t *ChainHandle) genXctx() xctx.XContext {

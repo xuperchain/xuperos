@@ -15,8 +15,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/spf13/cobra"
 
-	"github.com/xuperchain/xuperchain/core/global"
-	"github.com/xuperchain/xuperchain/core/pb"
+	"github.com/xuperchain/xupercore/lib/utils"
+	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
 // TxQueryCommand tx query cmd
@@ -59,7 +59,7 @@ func (t *TxQueryCommand) queryTx(ctx context.Context, txid string) error {
 	}
 	txstatus := &pb.TxStatus{
 		Header: &pb.Header{
-			Logid: global.Glogid(),
+			Logid: utils.GenLogId(),
 		},
 		Bcname: t.cli.RootOptions.Name,
 		Txid:   rawTxid,
