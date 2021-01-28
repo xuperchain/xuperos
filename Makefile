@@ -1,10 +1,10 @@
 # init project PATH
 HOMEDIR := $(shell pwd)
 OUTDIR  := $(HOMEDIR)/output
+TESTNETDIR := $(HOMEDIR)/testnet
 
 # init command params
 export GO111MODULE=on
-export GOFLAGS=-mod=vendor
 X_ROOT_PATH := $(HOMEDIR)
 export X_ROOT_PATH
 
@@ -12,7 +12,8 @@ export X_ROOT_PATH
 all: clean compile
 
 # make compile, go build
-compile:
+compile: xchain
+xchain:
 	bash $(HOMEDIR)/auto/build.sh
 
 # make test, test your code
@@ -21,7 +22,15 @@ test:
 
 # make clean
 clean:
-	rm -rf output
+	rm -rf $(OUTDIR)
+
+# make clean testnet dir
+cleantest:
+	rm -rf $(TESTNETDIR)
+
+# deploy test network
+testnet:
+	bash $(HOMEDIR)/auto/deploy_testnet.sh
 
 # avoid filename conflict and speed up build
 .PHONY: all compile test clean
