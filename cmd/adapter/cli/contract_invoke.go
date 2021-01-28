@@ -150,7 +150,8 @@ func convertToEvmArgsWithAbiFile(abiFile string, method string, args map[string]
 }
 
 func convertToEvmArgsWithAbiData(abiData []byte, method string, args map[string]interface{}) (map[string][]byte, []byte, error) {
-	enc, err := abi.New(abiData)
+	//todo evm
+	/*enc, err := abi.New(abiData)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -161,5 +162,6 @@ func convertToEvmArgsWithAbiData(abiData []byte, method string, args map[string]
 	ret := map[string][]byte{
 		"input": input,
 	}
-	return ret, abiData, nil
+	return ret, abiData, nil*/
+	return nil, nil, nil
 }

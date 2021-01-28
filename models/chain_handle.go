@@ -1,7 +1,6 @@
 package models
 
 import (
-	"github.com/crypto/gm/account"
 	"math/big"
 	"strconv"
 
@@ -123,6 +122,18 @@ func (t *ChainHandle) QueryBlock(blkId []byte, needContent bool) (*xpb.BlockInfo
 
 func (t *ChainHandle) QueryChainStatus() (*xpb.ChainStatus, error) {
 	return reader.NewChainReader(t.chain.Context(), t.genXctx()).GetChainStatus()
+}
+
+func (t *ChainHandle) IsTrunkTipBlock(blockId []byte) (bool, err) {
+	return reader.NewChainReader(t.chain.Context(), t.genXctx()).IsTrunkTipBlock(blockId)
+}
+
+func (t *ChainHandle) QueryBlockByHeight(height int64, needContent bool) (*xpb.BlockInfo, error) {
+	return reader.NewLedgerReader(t.chain.Context(), t.genXctx()).QueryBlockByHeight(height, needContent)
+}
+
+func (t *ChainHandle) GetAccountByAK(address string) ([]string, error) {
+	return reader.NewContractReader(t.chain.Context(), t.genXctx()).GetAccountByAK(account)
 }
 
 func (t *ChainHandle) genXctx() xctx.XContext {

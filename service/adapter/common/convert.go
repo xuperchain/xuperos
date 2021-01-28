@@ -269,10 +269,12 @@ func ContractStatusListToXchain(contractStatusList []*protos.ContractStatus) ([]
 	return tmpList, nil
 }
 
-func TransactionStatusToXchain(status xldgpb.TransactionStatus) pb.TransactionStatus {
-	var tmpStatus int32
-	tmpStatus = status
-	return tmpStatus
+func PeerInfoToStrings(info protos.PeerInfo) []string {
+	peerUrls := make([]string, 0, len(info.Peer))
+	for _, peer := range info.Peer {
+		peerUrls = append(peerUrls, peer.Address)
+	}
+	return peerUrls
 }
 
 func BalanceDetailToXchain(detail *xldgpb.BalanceDetailInfo) *pb.TokenFrozenDetail {
