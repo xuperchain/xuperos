@@ -48,7 +48,7 @@ start() {
     fi
 
     if [ ! -d "$RootChainDir" ]; then
-        $ClientPath chain create
+        $ClientPath createChain
         if [ $? -ne 0 ]; then
             echo "create root chain failed!"
             exit 1

@@ -1,5 +1,13 @@
 # Rpc service listen port
-rpcPort: 36101
+rpcPort: 36201
+# AdapterRpcPort
+adapterRpcPort: 36301
+# AdapterGWPort
+adapterGWPort: 36601
+# MetricPort
+metricPort: 36801
+# EnableAdapter
+enableAdapter: true
 # Set the max message size in bytes the server can receive.
 # If this is not set, gRPC uses the default 4MB.
 maxRecvMsgSize: 134217728

@@ -83,7 +83,7 @@ func (t *Gateway) runGateway() error {
 		grpc.WithReadBufferSize(t.scfg.ReadBufSize),
 	}
 
-	rpcEndpoint := fmt.Sprintf("localhost:%d", t.scfg.RpcPort)
+	rpcEndpoint := fmt.Sprintf(":%d", t.scfg.AdapterGWPort)
 	err := pb.RegisterXchainHandlerFromEndpoint(ctx, mux, rpcEndpoint, opts)
 	if err != nil {
 		return err
