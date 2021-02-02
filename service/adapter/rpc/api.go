@@ -534,7 +534,7 @@ func (t *RpcServ) GetBlock(gctx context.Context, req *pb.BlockID) (*pb.Block, er
 	}
 
 	block := acom.BlockToXchain(blockInfo.Block)
-	if err == nil {
+	if block == nil {
 		rctx.GetLog().Warn("convert block failed")
 		return resp, ecom.ErrInternal
 	}
