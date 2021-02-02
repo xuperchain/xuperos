@@ -407,7 +407,9 @@ func (t *RpcServ) QueryTx(gctx context.Context, req *pb.TxStatus) (*pb.TxStatus,
 // GetBalance get balance for account or addr
 func (t *RpcServ) GetBalance(gctx context.Context, req *pb.AddressStatus) (*pb.AddressStatus, error) {
 	// 默认响应
-	resp := &pb.AddressStatus{}
+	resp := &pb.AddressStatus{
+		Bcs: make([]*pb.TokenDetail, 0),
+	}
 	// 获取请求上下文，对内传递rctx
 	rctx := sctx.ValueReqCtx(gctx)
 
@@ -417,20 +419,23 @@ func (t *RpcServ) GetBalance(gctx context.Context, req *pb.AddressStatus) (*pb.A
 	}
 
 	for i := 0; i < len(req.Bcs); i++ {
+		tmpTokenDetail := &pb.TokenDetail{}
 		handle, err := models.NewChainHandle(req.Bcs[i].Bcname, rctx)
 		if err != nil {
-			resp.Bcs[i].Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-			resp.Bcs[i].Balance = ""
+			tmpTokenDetail.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+			tmpTokenDetail.Balance = ""
+			resp.Bcs = append(resp.Bcs, tmpTokenDetail)
 			continue
 		}
 		balance, err := handle.GetBalance(req.Address)
 		if err != nil {
-			resp.Bcs[i].Error = pb.XChainErrorEnum_UNKNOW_ERROR
-			resp.Bcs[i].Balance = ""
+			tmpTokenDetail.Error = pb.XChainErrorEnum_UNKNOW_ERROR
+			tmpTokenDetail.Balance = ""
 		} else {
-			resp.Bcs[i].Error = pb.XChainErrorEnum_SUCCESS
-			resp.Bcs[i].Balance = balance
+			tmpTokenDetail.Error = pb.XChainErrorEnum_SUCCESS
+			tmpTokenDetail.Balance = balance
 		}
+		resp.Bcs = append(resp.Bcs, tmpTokenDetail)
 	}
 	resp.Address = req.GetAddress()
 
@@ -441,7 +446,9 @@ func (t *RpcServ) GetBalance(gctx context.Context, req *pb.AddressStatus) (*pb.A
 // GetFrozenBalance get balance frozened for account or addr
 func (t *RpcServ) GetFrozenBalance(gctx context.Context, req *pb.AddressStatus) (*pb.AddressStatus, error) {
 	// 默认响应
-	resp := &pb.AddressStatus{}
+	resp := &pb.AddressStatus{
+		Bcs: make([]*pb.TokenDetail, 0),
+	}
 	// 获取请求上下文，对内传递rctx
 	rctx := sctx.ValueReqCtx(gctx)
 
@@ -451,20 +458,23 @@ func (t *RpcServ) GetFrozenBalance(gctx context.Context, req *pb.AddressStatus) 
 	}
 
 	for i := 0; i < len(req.Bcs); i++ {
+		tmpTokenDetail := &pb.TokenDetail{}
 		handle, err := models.NewChainHandle(req.Bcs[i].Bcname, rctx)
 		if err != nil {
-			resp.Bcs[i].Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-			resp.Bcs[i].Balance = ""
+			tmpTokenDetail.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+			tmpTokenDetail.Balance = ""
+			resp.Bcs = append(resp.Bcs, tmpTokenDetail)
 			continue
 		}
 		balance, err := handle.GetFrozenBalance(req.Address)
 		if err != nil {
-			resp.Bcs[i].Error = pb.XChainErrorEnum_UNKNOW_ERROR
-			resp.Bcs[i].Balance = ""
+			tmpTokenDetail.Error = pb.XChainErrorEnum_UNKNOW_ERROR
+			tmpTokenDetail.Balance = ""
 		} else {
-			resp.Bcs[i].Error = pb.XChainErrorEnum_SUCCESS
-			resp.Bcs[i].Balance = balance
+			tmpTokenDetail.Error = pb.XChainErrorEnum_SUCCESS
+			tmpTokenDetail.Balance = balance
 		}
+		resp.Bcs = append(resp.Bcs, tmpTokenDetail)
 	}
 	resp.Address = req.GetAddress()
 
@@ -475,7 +485,9 @@ func (t *RpcServ) GetFrozenBalance(gctx context.Context, req *pb.AddressStatus) 
 // GetBalanceDetail get balance frozened for account or addr
 func (t *RpcServ) GetBalanceDetail(gctx context.Context, req *pb.AddressBalanceStatus) (*pb.AddressBalanceStatus, error) {
 	// 默认响应
-	resp := &pb.AddressBalanceStatus{}
+	resp := &pb.AddressBalanceStatus{
+		Tfds: make([]*pb.TokenFrozenDetails, 0),
+	}
 	// 获取请求上下文，对内传递rctx
 	rctx := sctx.ValueReqCtx(gctx)
 
@@ -485,24 +497,28 @@ func (t *RpcServ) GetBalanceDetail(gctx context.Context, req *pb.AddressBalanceS
 	}
 
 	for i := 0; i < len(req.Tfds); i++ {
+		tmpFrozenDetails := &pb.TokenFrozenDetails{}
 		handle, err := models.NewChainHandle(req.Tfds[i].Bcname, rctx)
 		if err != nil {
-			resp.Tfds[i].Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
-			resp.Tfds[i].Tfd = nil
+			tmpFrozenDetails.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
+			tmpFrozenDetails.Tfd = nil
+			resp.Tfds = append(resp.Tfds, tmpFrozenDetails)
+			continue
 		}
 		tfd, err := handle.GetBalanceDetail(req.GetAddress())
 		if err != nil {
-			resp.Tfds[i].Error = pb.XChainErrorEnum_UNKNOW_ERROR
-			resp.Tfds[i].Tfd = nil
+			tmpFrozenDetails.Error = pb.XChainErrorEnum_UNKNOW_ERROR
+			tmpFrozenDetails.Tfd = nil
 		} else {
 			xchainTfd, err := acom.BalanceDetailsToXchain(tfd)
 			if err != nil {
-				resp.Tfds[i].Error = pb.XChainErrorEnum_UNKNOW_ERROR
-				resp.Tfds[i].Tfd = nil
+				tmpFrozenDetails.Error = pb.XChainErrorEnum_UNKNOW_ERROR
+				tmpFrozenDetails.Tfd = nil
 			}
-			resp.Tfds[i].Error = pb.XChainErrorEnum_SUCCESS
-			resp.Tfds[i].Tfd = xchainTfd
+			tmpFrozenDetails.Error = pb.XChainErrorEnum_SUCCESS
+			tmpFrozenDetails.Tfd = xchainTfd
 		}
+		resp.Tfds = append(resp.Tfds, tmpFrozenDetails)
 	}
 
 	rctx.GetLog().SetInfoField("account", req.GetAddress())
