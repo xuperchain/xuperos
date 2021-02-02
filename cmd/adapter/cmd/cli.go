@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -23,6 +24,7 @@ import (
 
 	crypto_client "github.com/xuperchain/xupercore/lib/crypto/client"
 	crypto_base "github.com/xuperchain/xupercore/lib/crypto/client/base"
+	cryptoHash "github.com/xuperchain/xupercore/lib/crypto/hash"
 	"github.com/xuperchain/xupercore/lib/utils"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
 	"github.com/xuperchain/xuperos/service/adapter/common"
@@ -305,7 +307,7 @@ func (c *Cli) transfer(ctx context.Context, client pb.XchainClient, opt *Transfe
 func (c *Cli) tansferSupportAccount(ctx context.Context, client pb.XchainClient, opt *TransferOptions,
 	initAddr, initPubkey, initScrkey string, cryptoClient crypto_base.CryptoClient) (string, error) {
 	// 组装交易
-	txStatus, err := assembleTxSupportAccount(ctx, client, opt, initAddr)
+	txStatus, err := assembleTxSupportAccount(ctx, client, opt, initAddr, initPubkey, initScrkey, cryptoClient)
 	if err != nil {
 		return "", err
 	}
@@ -341,7 +343,8 @@ func (c *Cli) tansferSupportAccount(ctx context.Context, client pb.XchainClient,
 	return hex.EncodeToString(txStatus.GetTxid()), nil
 }
 
-func assembleTxSupportAccount(ctx context.Context, client pb.XchainClient, opt *TransferOptions, initAddr string) (*pb.TxStatus, error) {
+func assembleTxSupportAccount(ctx context.Context, client pb.XchainClient, opt *TransferOptions, initAddr, initPubkey,
+	initScrkey string, cryptoClient crypto_base.CryptoClient) (*pb.TxStatus, error) {
 	bigZero := big.NewInt(0)
 	totalNeed := big.NewInt(0)
 	tx := &pb.Transaction{
@@ -378,7 +381,8 @@ func assembleTxSupportAccount(ctx context.Context, client pb.XchainClient, opt *
 		tx.TxOutputs = append(tx.TxOutputs, txOutput)
 	}
 	// 组装input 和 剩余output
-	txInputs, deltaTxOutput, err := assembleTxInputsSupportAccount(ctx, client, opt, totalNeed)
+	txInputs, deltaTxOutput, err := assembleTxInputsSupportAccount(ctx, client, opt, totalNeed, initAddr,
+		initScrkey, initPubkey, cryptoClient)
 	if err != nil {
 		return nil, err
 	}
@@ -487,13 +491,21 @@ func genAuthRequireSigns(opt *TransferOptions, cryptoClient crypto_base.CryptoCl
 	return authRequireSigns, nil
 }
 
-func assembleTxInputsSupportAccount(ctx context.Context, client pb.XchainClient, opt *TransferOptions, totalNeed *big.Int) ([]*pb.TxInput, *pb.TxOutput, error) {
+func assembleTxInputsSupportAccount(ctx context.Context, client pb.XchainClient, opt *TransferOptions, totalNeed *big.Int,
+	initAddr, initPubkey, initScrkey string, cryptoClient crypto_base.CryptoClient) ([]*pb.TxInput, *pb.TxOutput, error) {
 	ui := &pb.UtxoInput{
 		Bcname:    opt.BlockchainName,
 		Address:   opt.From,
 		TotalNeed: totalNeed.String(),
 		NeedLock:  true,
+		Publickey: initPubkey,
 	}
+
+	sign, err := computeSelectUtxoSign(opt.BlockchainName, initAddr, totalNeed.String(), initScrkey, strconv.FormatBool(true), cryptoClient)
+	if err != nil {
+		return nil, nil, err
+	}
+	ui.UserSign = sign
 	utxoRes, selectErr := client.SelectUTXO(ctx, ui)
 	if selectErr != nil || utxoRes.Header.Error != pb.XChainErrorEnum_SUCCESS {
 		return nil, nil, ErrSelectUtxo
@@ -521,6 +533,21 @@ func assembleTxInputsSupportAccount(ctx context.Context, client pb.XchainClient,
 		}
 	}
 	return txTxInputs, txOutput, nil
+}
+
+func computeSelectUtxoSign(bcName, account, need, initScrKey, isLock string, cryptoClient crypto_base.CryptoClient) ([]byte, error) {
+	privateKey, err := cryptoClient.GetEcdsaPrivateKeyFromJsonStr(initScrKey)
+	if err != nil {
+		return nil, err
+	}
+
+	hashStr := bcName + account + need + isLock
+	doubleHash := cryptoHash.DoubleSha256([]byte(hashStr))
+	signResult, err := cryptoClient.SignECDSA(privateKey, doubleHash)
+	if err != nil {
+		return nil, err
+	}
+	return signResult, nil
 }
 
 // AddCommand add sub cmd
