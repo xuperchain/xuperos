@@ -13,4 +13,5 @@ var StdErrToXchainErrMap = map[int]pb.XChainErrorEnum{
 	ecom.ErrForbidden.Code:    pb.XChainErrorEnum_CONNECT_REFUSE,
 	ecom.ErrUnauthorized.Code: pb.XChainErrorEnum_CONNECT_REFUSE,
 	ecom.ErrParameter.Code:    pb.XChainErrorEnum_CONNECT_REFUSE,
+	ecom.ErrTxNotExist.Code:   pb.XChainErrorEnum_TX_NOT_FOUND_ERROR,
 }

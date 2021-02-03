@@ -3,8 +3,10 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"reflect"
+	"runtime"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -34,15 +36,7 @@ func NewRpcServ(engine ecom.Engine, log logs.Logger) *RpcServ {
 // UnaryInterceptor provides a hook to intercept the execution of a unary RPC on the server.
 func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo,
-		handler grpc.UnaryHandler) (interface{}, error) {
-
-		// panic recover
-		defer func() {
-			if e := recover(); e != nil {
-				t.log.Error("Rpc server happen panic.", "error", e, "rpc_method", info.FullMethod)
-			}
-		}()
-
+		handler grpc.UnaryHandler) (respRes interface{}, err error) {
 		// set request header
 		type HeaderInterface interface {
 			GetHeader() *pb.Header
@@ -66,12 +60,25 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 		logFields := make([]interface{}, 0)
 		logFields = append(logFields, "from", reqHeader.GetFromNode(),
 			"client_ip", reqCtx.GetClientIp(), "rpc_method", info.FullMethod)
-		reqCtx.GetLog().Trace("access request", logFields...)
+
+		// panic recover
+		defer func() {
+			reqCtx.GetLog().Info("access", logFields...)
+			if e := recover(); e != nil {
+				err = fmt.Errorf("%s log_id = %s", ecom.ErrInternal, reqCtx.GetLog().GetLogId())
+				reqCtx.GetLog().Error("Rpc server happen panic", "error", e)
+
+				// stack
+				stack := make([]byte, 8192)
+				n := runtime.Stack(stack[:], false)
+				log.Printf("%s Rpc server happen panic: %s", reqCtx.GetLog().GetLogId(), stack[:n])
+			}
+		}()
 
 		// handle request
 		// 根据err自动设置响应错误码，err需要是ecom.Error类型的标准err，否则会响应为未知错误
 		stdErr := ecom.ErrSuccess
-		respRes, err := handler(ctx, req)
+		respRes, err = handler(ctx, req)
 		if err != nil {
 			stdErr = ecom.CastError(err)
 		}
@@ -91,8 +98,6 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 		// 可以通过log库提供的SetInfoField方法附加输出到ending log
 		logFields = append(logFields, "status", stdErr.Status, "err_code", stdErr.Code,
 			"err_msg", stdErr.Msg, "cost_time", reqCtx.GetTimer().Print())
-		reqCtx.GetLog().Info("request done", logFields...)
-
 		return respRes, nil
 	}
 }
