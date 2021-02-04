@@ -25,6 +25,7 @@ type AccountNewCommand struct {
 	accountName string
 	descfile    string
 	fee         string
+	debug       bool
 }
 
 // NewAccountNewCommand new account new cmd
@@ -48,6 +49,7 @@ func (c *AccountNewCommand) addFlags() {
 	c.cmd.Flags().StringVar(&c.accountName, "account", "", "Account name for contracts.")
 	c.cmd.Flags().StringVar(&c.descfile, "desc", "", "The json config file for creating an account.")
 	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to create an account.")
+	c.cmd.Flags().BoolVarP(&c.debug, "debug", "", false, "debug print tx instead of posting")
 }
 
 func (c *AccountNewCommand) newAccount(ctx context.Context) error {
@@ -72,6 +74,8 @@ func (c *AccountNewCommand) newAccount(ctx context.Context) error {
 		XchainClient: c.cli.XchainClient(),
 		CryptoType:   c.cli.RootOptions.CryptoType,
 		CliConf:      c.cli.RootOptions.CliConf,
+
+		DebugTx: 	  c.debug,
 	}
 
 	var err error
@@ -82,6 +86,7 @@ func (c *AccountNewCommand) newAccount(ctx context.Context) error {
 
 	if c.accountName != "" {
 		ct.ModuleName = "xkernel"
+		ct.ContractName = "acl"
 		ct.Args["account_name"] = []byte(c.accountName)
 		simpleACL := `
         {

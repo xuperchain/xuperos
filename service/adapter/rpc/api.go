@@ -378,8 +378,8 @@ func (t *RpcServ) QueryTx(gctx context.Context, req *pb.TxStatus) (*pb.TxStatus,
 
 	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
 	if err != nil {
-		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
-		return resp, err
+		rctx.GetLog().Warn("new chain handle failed", "err", err)
+		return resp, ecom.ErrInternal.More("%v", err)
 	}
 
 	txInfo, err := handle.QueryTx(req.GetTxid())
@@ -554,6 +554,7 @@ func (t *RpcServ) GetBlock(gctx context.Context, req *pb.BlockID) (*pb.Block, er
 		rctx.GetLog().Warn("convert block failed")
 		return resp, ecom.ErrInternal
 	}
+
 	resp.Block = block
 	resp.Status = pb.Block_EBlockStatus(blockInfo.Status)
 	resp.Bcname = req.Bcname
