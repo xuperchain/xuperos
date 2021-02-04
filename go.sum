@@ -900,7 +900,6 @@ github.com/xuperchain/log15 v0.0.0-20190620081506-bc88a9198230/go.mod h1:90Da9GD
 github.com/xuperchain/wagon v0.6.1-0.20200121123450-b08562bb5f9a/go.mod h1:PjShksGcTLuvtHxudQ7nOdlvlw2NdbZrTn8jvdY9Mkw=
 github.com/xuperchain/wagon v0.6.1-0.20200313164333-db544e251599 h1:xh8MpzUZFmNOpeJyiiBCYOJq7gq7nRBU647y6e78Qms=
 github.com/xuperchain/wagon v0.6.1-0.20200313164333-db544e251599/go.mod h1:PjShksGcTLuvtHxudQ7nOdlvlw2NdbZrTn8jvdY9Mkw=
-github.com/xuperchain/xuperchain v0.0.0-20200203053733-ba46d3bc58b5/go.mod h1:LTJGTJfXc0WwLmmEU45AvUHXb/W0Bwlze79dS/WG/fc=
 github.com/xuperchain/xupercore v0.0.0-20201224071758-ef16b2731c15 h1:AeVG/xK0AK0jrVH2Q+IyNZW+b1aOOmQX6/GHvNdo2SA=
 github.com/xuperchain/xupercore v0.0.0-20201224071758-ef16b2731c15/go.mod h1:A+2MKT2FPQnY3PKMn7vDZjlwNK/bKDxYVG0COGwDT+k=
 github.com/xuperchain/xupercore v0.0.0-20210128115644-a0cc0f7214b1 h1:9Y5hnL/mFarrKQMCcF+vquWAoRVoW1KiTdd3efVA0rw=
