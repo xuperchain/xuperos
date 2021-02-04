@@ -800,6 +800,8 @@ github.com/xuperchain/wagon v0.6.1-0.20200313164333-db544e251599 h1:xh8MpzUZFmNO
 github.com/xuperchain/wagon v0.6.1-0.20200313164333-db544e251599/go.mod h1:PjShksGcTLuvtHxudQ7nOdlvlw2NdbZrTn8jvdY9Mkw=
 github.com/xuperchain/xupercore v0.0.0-20210128115644-a0cc0f7214b1 h1:9Y5hnL/mFarrKQMCcF+vquWAoRVoW1KiTdd3efVA0rw=
 github.com/xuperchain/xupercore v0.0.0-20210128115644-a0cc0f7214b1/go.mod h1:9wCOl4KXQbbTuE4xsXLv1MYHo/GyF45H/pRJKU07azU=
+github.com/xuperchain/xupercore v0.0.0-20210202140640-3caeb628b08c h1:+7zbzrRQO7nWQiQ7xT5EeBS0SsLbQ6hei3xkN76QOnU=
+github.com/xuperchain/xupercore v0.0.0-20210202140640-3caeb628b08c/go.mod h1:9wCOl4KXQbbTuE4xsXLv1MYHo/GyF45H/pRJKU07azU=
 github.com/xuperchain/xvm v0.0.0-20210126142521-68fd016c56d7 h1:ARg101vOoX4N+6hbwtud6b0P/bb+7JtrCfVXAHa/xHU=
 github.com/xuperchain/xvm v0.0.0-20210126142521-68fd016c56d7/go.mod h1:XTaJSLDGYlcAPFb5vWH4vVALckO3V5+wa4zl1mpKMjg=
 gitlab.com/NebulousLabs/errors v0.0.0-20171229012116-7ead97ef90b8/go.mod h1:ZkMZ0dpQyWwlENaeZVBiQRjhMEZvk6VTXquzl3FOFP8=
