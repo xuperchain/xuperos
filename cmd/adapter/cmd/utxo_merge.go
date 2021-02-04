@@ -75,7 +75,7 @@ func (c *MergeUtxoCommand) mergeUtxo(ctx context.Context) error {
 		ChainName:    c.cli.RootOptions.Name,
 		Keys:         c.cli.RootOptions.Keys,
 		XchainClient: c.cli.XchainClient(),
-		CryptoType:   c.cli.RootOptions.CryptoType,
+		CryptoType:   c.cli.RootOptions.Crypto,
 	}
 
 	txInputs, txOutput, err := ct.GenTxInputsWithMergeUTXO(context.Background())

@@ -96,7 +96,7 @@ func (c *SplitUtxoCommand) splitUtxo(ctx context.Context) error {
 		ChainName:    c.cli.RootOptions.Name,
 		Keys:         c.cli.RootOptions.Keys,
 		XchainClient: c.cli.XchainClient(),
-		CryptoType:   c.cli.RootOptions.CryptoType,
+		CryptoType:   c.cli.RootOptions.Crypto,
 		MultiAddrs:   c.multiAddrs,
 		Output:       c.output,
 	}

@@ -9,10 +9,21 @@ import (
 )
 
 type CliConfig struct {
+	Host               string                `yaml:"host,omitempty"`
+	Name               string                `yaml:"name,omitempty"`
+	Keys               string                `yaml:"keys,omitempty"`
+	Crypto             string                `yaml:"crypto,omitempty"`
+	TLS                TLSOptions            `yaml:"tls,omitempty"`
 	EndorseServiceHost string                `yaml:"endorseServiceHost,omitempty"`
 	ComplianceCheck    ComplianceCheckConfig `yaml:"complianceCheck,omitempty"`
 	MinNewChainAmount  string                `yaml:"minNewChainAmount,omitempty"`
-	Crypto             string                `yaml:"crypto,omitempty"`
+}
+
+// TLSOptions TLS part
+type TLSOptions struct {
+	Cert   string `yaml:"cert,omitempty"`
+	Server string `yaml:"server,omitempty"`
+	Enable bool   `yaml:"enable,omitempty"`
 }
 
 // ComplianceCheckConfig: config of xendorser service control
@@ -30,7 +41,7 @@ type ComplianceCheckConfig struct {
 // NewNodeConfig new a NodeConfig instance
 func NewCliConfig() *CliConfig {
 	xendorserConfig := &CliConfig{}
-	xendorserConfig.defaultCliConfig()
+	xendorserConfig.setDefaultConf()
 	return xendorserConfig
 }
 
@@ -62,14 +73,22 @@ func (nc *CliConfig) loadConfigFile(configPath string, confName string) error {
 	return nil
 }
 
-func (nc *CliConfig) defaultCliConfig() {
+func (nc *CliConfig) setDefaultConf() {
+	nc.Host = "127.0.0.1:36301"
+	nc.Name = "xuper"
+	nc.Keys = "./data/keys"
+	nc.Crypto = "default"
+	nc.TLS = TLSOptions{
+		Cert:   "",
+		Server: "",
+		Enable: false,
+	}
+	nc.EndorseServiceHost = "127.0.0.1:8848"
 	nc.ComplianceCheck = ComplianceCheckConfig{
 		IsNeedComplianceCheck:             false,
 		IsNeedComplianceCheckFee:          true,
 		ComplianceCheckEndorseServiceFee:  400,
 		ComplianceCheckEndorseServiceAddr: "jknGxa6eyum1JrATWvSJKW3thJ9GKHA9n",
 	}
-	nc.EndorseServiceHost = "localhost:8848"
 	nc.MinNewChainAmount = "100"
-	nc.Crypto = "xchain"
 }

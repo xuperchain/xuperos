@@ -61,7 +61,7 @@ func (c *VoteCommand) vote(ctx context.Context, txid string) error {
 	opt := TransferOptions{
 		BlockchainName: c.cli.RootOptions.Name,
 		KeyPath:        c.cli.RootOptions.Keys,
-		CryptoType:     c.cli.RootOptions.CryptoType,
+		CryptoType:     c.cli.RootOptions.Crypto,
 		To:             myaddress,
 		Amount:         c.amount,
 		Desc:           desc,
