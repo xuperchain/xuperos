@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -85,42 +86,33 @@ func (c *Cli) initXchainClient() error {
 
 func (c *Cli) initFlags() error {
 	// 参数设置优先级：1.命令行指定 2.配置文件指定 3.默认值
-	// 1.从命令行指定
+	// 加载配置文件
+	var cliCfgFile string
 	rootFlag := c.rootCmd.PersistentFlags()
-	rootFlag.StringVarP(&c.RootOptions.Host, "host", "H", "", "server node ip:port")
-	rootFlag.StringVarP(&c.RootOptions.Name, "name", "", "", "block chain name")
-	rootFlag.StringVarP(&c.RootOptions.Keys, "keys", "", "", "directory of keys")
-	rootFlag.StringVarP(&c.RootOptions.Crypto, "crypto", "", "", "crypto type, default|gm|schnorr")
-	rootFlag.StringVarP(&c.RootOptions.Config, "conf", "C", "./conf/client.yaml", "client config file")
-
-	// 2.加载配置文件
+	rootFlag.StringVarP(&cliCfgFile, "conf", "C", "./conf/client.yaml", "client config file")
 	cliCfg := NewCliConfig()
-	err := cliCfg.LoadConfig(c.RootOptions.Config)
+	err := cliCfg.LoadConfig(cliCfgFile)
 	if err != nil {
-		fmt.Printf("load client config failed.config:%s err:%v\n", c.RootOptions.Config, err)
-		return fmt.Errorf("load client config failed")
+		fmt.Printf("load client config failed.config:%s err:%v\n", cliCfgFile, err)
+		os.Exit(-1)
 	}
 	c.CliConf = cliCfg
 
-	// 3.检查如果命令行没设置，就设置为配置文件值
-	if c.RootOptions.Host == "" {
-		c.RootOptions.Host = c.CliConf.Host
-	}
-	if c.RootOptions.Name == "" {
-		c.RootOptions.Name = c.CliConf.Name
-	}
-	if c.RootOptions.Keys == "" {
-		c.RootOptions.Keys = c.CliConf.Keys
-	}
-	if c.RootOptions.Crypto == "" {
-		c.RootOptions.Crypto = c.CliConf.Crypto
-	}
+	// 设置命令行参数和默认值
+	rootFlag.StringP("host", "H", c.CliConf.Host, "server node ip:port")
+	rootFlag.String("name", c.CliConf.Name, "block chain name")
+	rootFlag.String("keys", c.CliConf.Keys, "directory of keys")
+	rootFlag.String("crypto", c.CliConf.Crypto, "crypto type")
+	viper.BindPFlags(rootFlag)
 
-	err = c.initXchainClient()
-	if err != nil {
-		fmt.Printf("init xchain client failed.err:%v\n", err)
-		return fmt.Errorf("init xchain client failed")
-	}
+	cobra.OnInitialize(func() {
+		viper.Unmarshal(&c.RootOptions)
+		err = c.initXchainClient()
+		if err != nil {
+			fmt.Printf("init xchain client failed.err:%v\n", err)
+			os.Exit(-1)
+		}
+	})
 
 	return nil
 }
