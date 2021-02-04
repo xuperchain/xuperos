@@ -59,7 +59,7 @@ func (c *AccountDecryptCommand) decrypt(ctx context.Context) error {
 		return fmt.Errorf("output directory exists, abort")
 	}
 
-	if c.cli.RootOptions.CryptoType != "default" {
+	if c.cli.RootOptions.Crypto != "default" {
 		return fmt.Errorf("only support default crypto plugin by now")
 	}
 

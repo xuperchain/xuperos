@@ -137,7 +137,7 @@ func (t *TransferCommand) transfer(ctx context.Context) error {
 	opt := TransferOptions{
 		BlockchainName: t.cli.RootOptions.Name,
 		KeyPath:        t.cli.RootOptions.Keys,
-		CryptoType:     t.cli.RootOptions.CryptoType,
+		CryptoType:     t.cli.RootOptions.Crypto,
 		To:             t.to,
 		Amount:         t.amount,
 		Fee:            t.fee,

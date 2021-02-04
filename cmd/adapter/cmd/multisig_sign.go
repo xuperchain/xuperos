@@ -132,7 +132,7 @@ func (c *MultisigSignCommand) sign() error {
 // GetSignTx use privatekey to get sign
 func (c *MultisigSignCommand) genSignTx(tx *pb.Transaction) ([]byte, error) {
 	// create crypto client
-	cryptoClient, err := crypto_client.CreateCryptoClient(c.cli.RootOptions.CryptoType)
+	cryptoClient, err := crypto_client.CreateCryptoClient(c.cli.RootOptions.Crypto)
 	if err != nil {
 		return nil, errors.New("Create crypto client error")
 	}

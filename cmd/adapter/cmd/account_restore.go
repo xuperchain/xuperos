@@ -57,7 +57,7 @@ func (c *AccountRestoreCommand) restoreAccount() error {
 	default:
 		return fmt.Errorf("bad lang:%s use zh|en instead", langstr)
 	}
-	c.cryptoType = c.cli.RootOptions.CryptoType
+	c.cryptoType = c.cli.RootOptions.Crypto
 	cryptoClient, cryptoErr := crypto_client.CreateCryptoClient(c.cryptoType)
 	if cryptoErr != nil {
 		return fmt.Errorf("fail to create crypto client, err:%s", cryptoErr)
