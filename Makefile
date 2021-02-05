@@ -1,26 +1,36 @@
-ifeq ($(OS),Windows_NT)
-  PLATFORM="Windows"
-else
-  ifeq ($(shell uname),Darwin)
-    PLATFORM="MacOS"
-  else
-    PLATFORM="Linux"
-  endif
-endif
+# init project PATH
+HOMEDIR := $(shell pwd)
+OUTDIR  := $(HOMEDIR)/output
+TESTNETDIR := $(HOMEDIR)/testnet
 
-all: build 
+# init command params
 export GO111MODULE=on
-export GOFLAGS=-mod=vendor
-XUPEROS_ROOT := ${PWD}
-export XUPEROS_ROOT
+X_ROOT_PATH := $(HOMEDIR)
+export X_ROOT_PATH
 
-build:
-	PLATFORM=$(PLATFORM) ./build.sh
+# make, make all
+all: clean compile
 
+# make compile, go build
+compile: xchain
+xchain:
+	bash $(HOMEDIR)/auto/build.sh
+
+# make test, test your code
 test:
-	go test -cover ./...
+	go test -coverprofile=coverage.txt -covermode=atomic ./...
 
+# make clean
 clean:
-	PLATFORM=$(PLATFORM) ./build.sh clean
+	rm -rf $(OUTDIR)
 
-.PHONY: all test clean
+# make clean testnet dir
+cleantest:
+	rm -rf $(TESTNETDIR)
+
+# deploy test network
+testnet:
+	bash $(HOMEDIR)/auto/deploy_testnet.sh
+
+# avoid filename conflict and speed up build
+.PHONY: all compile test clean
