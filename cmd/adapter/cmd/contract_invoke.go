@@ -92,9 +92,9 @@ func (c *ContractInvokeCommand) invoke(ctx context.Context, codeName string) err
 		ChainName:    c.cli.RootOptions.Name,
 		Keys:         c.cli.RootOptions.Keys,
 		XchainClient: c.cli.XchainClient(),
-		CryptoType:   c.cli.RootOptions.CryptoType,
+		CryptoType:   c.cli.RootOptions.Crypto,
 		DebugTx:      c.debug,
-		CliConf:      c.cli.RootOptions.CliConf,
+		CliConf:      c.cli.CliConf,
 	}
 	// transfer to contract
 	if c.amount != "" {

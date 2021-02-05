@@ -72,10 +72,10 @@ func (c *AccountNewCommand) newAccount(ctx context.Context) error {
 		ChainName:    c.cli.RootOptions.Name,
 		Keys:         c.cli.RootOptions.Keys,
 		XchainClient: c.cli.XchainClient(),
-		CryptoType:   c.cli.RootOptions.CryptoType,
-		CliConf:      c.cli.RootOptions.CliConf,
+		CryptoType:   c.cli.RootOptions.Crypto,
+		CliConf:      c.cli.CliConf,
 
-		DebugTx: 	  c.debug,
+		DebugTx: c.debug,
 	}
 
 	var err error

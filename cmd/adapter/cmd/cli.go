@@ -41,26 +41,17 @@ var (
 
 // RootOptions 代表全局通用的flag，可以以嵌套结构体的方式组织flags.
 type RootOptions struct {
-	Host        string
-	Name        string
-	Keys        string
-	TLS         TLSOptions
-	CryptoType  string
-	Xuper3      bool
-	CliConfPath string
-	CliConf     *CliConfig
-}
-
-// TLSOptions TLS part
-type TLSOptions struct {
-	Cert   string
-	Server string
-	Enable bool
+	Host   string
+	Name   string
+	Keys   string
+	Crypto string
+	Config string
 }
 
 // Cli 是所有子命令执行的上下文.
 type Cli struct {
 	RootOptions RootOptions
+	CliConf     *CliConfig
 
 	rootCmd *cobra.Command
 	xclient pb.XchainClient
@@ -95,54 +86,35 @@ func (c *Cli) initXchainClient() error {
 }
 
 func (c *Cli) initFlags() error {
-	var cfgFile string
-	rootFlags := c.rootCmd.PersistentFlags()
-	rootFlags.StringVar(&cfgFile, "config", "", "config file (default is ./xchain.yaml)")
-	rootFlags.StringP("host", "H", "127.0.0.1:37101", "server node ip:port")
-	rootFlags.String("name", "xuper", "block chain name")
-	rootFlags.String("keys", "data/keys", "directory of keys")
-	rootFlags.String("cryptotype", crypto_client.CryptoTypeDefault, "crypto type, default|gm|schnorr")
-	rootFlags.String("cliconfpath", "", "cli config file path")
-	viper.BindPFlags(rootFlags)
+	// 参数设置优先级：1.命令行指定 2.配置文件指定 3.默认值
+	// 加载配置文件
+	var cliCfgFile string
+	rootFlag := c.rootCmd.PersistentFlags()
+	rootFlag.StringVarP(&cliCfgFile, "conf", "C", "./conf/client.yaml", "client config file")
+	cliCfg := NewCliConfig()
+	err := cliCfg.LoadConfig(cliCfgFile)
+	if err != nil {
+		fmt.Printf("load client config failed.config:%s err:%v\n", cliCfgFile, err)
+		os.Exit(-1)
+	}
+	c.CliConf = cliCfg
+
+	// 设置命令行参数和默认值
+	rootFlag.StringP("host", "H", c.CliConf.Host, "server node ip:port")
+	rootFlag.String("name", c.CliConf.Name, "block chain name")
+	rootFlag.String("keys", c.CliConf.Keys, "directory of keys")
+	rootFlag.String("crypto", c.CliConf.Crypto, "crypto type")
+	viper.BindPFlags(rootFlag)
 
 	cobra.OnInitialize(func() {
-		if cfgFile != "" {
-			viper.SetConfigFile(cfgFile)
-		}
-		viper.SetConfigName("xchain")
-		viper.AddConfigPath(".")
-		viper.AddConfigPath("./conf")
-		viper.AddConfigPath(os.Getenv("HOME"))
-		viper.ReadInConfig()
-		// viper按照如下顺序查找一个flag key:
-		// - pflag里面的被命令行显式设置的key
-		// - 环境变量显式设置的
-		// - 配置文件显式设置的
-		// - KV存储的
-		// - 通过viper设置的default flag
-		// - 如果前面都没有变化，最后使用pflag的默认值
-		// 所以在Unmarshal的时候命令行里面显式设置的flag会覆盖配置文件里面的flag
-		// 如果配置文件没有这个flag，会用pflag的默认值
-		//
-		// 如果想使用嵌套struct的flag，则在设置pflag的flag name的时候需要使用如下的方式
-		// rootFlags.String("topic.key", "", "")
 		viper.Unmarshal(&c.RootOptions)
-
-		cfg := NewCliConfig()
-		if c.RootOptions.CliConfPath != "" {
-			err := cfg.LoadConfig(c.RootOptions.CliConfPath)
-			if err != nil {
-				os.Exit(-1)
-			}
-		}
-		c.RootOptions.CliConf = cfg
-
-		err := c.initXchainClient()
+		err = c.initXchainClient()
 		if err != nil {
-			fmt.Printf("init xchain client:%s\n", err)
+			fmt.Printf("init xchain client failed.err:%v\n", err)
 			os.Exit(-1)
 		}
 	})
+
 	return nil
 }
 
@@ -233,8 +205,8 @@ func (c *Cli) RangeNodes(ctx context.Context, f func(addr string, client pb.Xcha
 		return err
 	}
 	options := []grpc.DialOption{grpc.WithMaxMsgSize(64<<20 - 1)}
-	if c.RootOptions.TLS.Enable {
-		cred, err := genCreds(c.RootOptions.TLS.Cert, c.RootOptions.TLS.Server)
+	if c.CliConf.TLS.Enable {
+		cred, err := genCreds(c.CliConf.TLS.Cert, c.CliConf.TLS.Server)
 		if err != nil {
 			return err
 		}

@@ -54,7 +54,7 @@ func (c *AccountNewkeysCommand) createAccount() error {
 	if err := os.MkdirAll(c.outputdir, os.ModePerm); nil != err {
 		return fmt.Errorf("failed to create output dir before create account:%s", err)
 	}
-	c.cryptoType = c.cli.RootOptions.CryptoType
+	c.cryptoType = c.cli.RootOptions.Crypto
 	if c.strength > 0 {
 		// intversion, _ := strconv.ParseInt(xchainversion.Version, 0, 8)
 		// version := uint8(intversion)
