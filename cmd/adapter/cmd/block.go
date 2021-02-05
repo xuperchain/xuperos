@@ -72,7 +72,6 @@ func (b *BlockCommand) queryBlock(ctx context.Context, blockid string) error {
 	}
 
 	if block.Header.Error != pb.XChainErrorEnum_SUCCESS {
-		fmt.Printf("log_id: %s\n", block.Header.Logid)
 		return errors.New(block.Header.Error.String())
 	}
 	if block.Block == nil {

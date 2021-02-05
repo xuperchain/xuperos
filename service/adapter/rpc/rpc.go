@@ -98,7 +98,7 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 		// 可以通过log库提供的SetInfoField方法附加输出到ending log
 		logFields = append(logFields, "status", stdErr.Status, "err_code", stdErr.Code,
 			"err_msg", stdErr.Msg, "cost_time", reqCtx.GetTimer().Print())
-		return respRes, nil
+		return respRes, err
 	}
 }
 

@@ -6,7 +6,7 @@
             "quota": "100000000000000000000"
         }
     ],
-    "maxblocksize": "16",
+    "maxblocksize": "128",
     "award": "1000000",
     "decimals": "8",
     "award_decay": {

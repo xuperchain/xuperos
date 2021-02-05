@@ -95,7 +95,7 @@ func ConvertInvokeReq(reqs []*pb.InvokeRequest) ([]*protos.InvokeRequest, error)
 		return nil, nil
 	}
 
-	newReqs := make([]*protos.InvokeRequest, len(reqs))
+	newReqs := make([]*protos.InvokeRequest, 0, len(reqs))
 	for _, req := range reqs {
 		buf, err := proto.Marshal(req)
 		if err != nil {
@@ -176,7 +176,7 @@ func UtxoListToXchain(utxoList []*xldgpb.Utxo) ([]*pb.Utxo, error) {
 		return nil, nil
 	}
 
-	tmpList := make([]*pb.Utxo, len(utxoList))
+	tmpList := make([]*pb.Utxo, 0, len(utxoList))
 	for _, utxo := range utxoList {
 		tmp := UtxoToXchain(utxo)
 		if tmp == nil {
@@ -201,7 +201,7 @@ func UtxoRecordToXchain(record *xldgpb.UtxoRecord) *pb.UtxoRecord {
 		return newRecord
 	}
 
-	newRecord.Item = make([]*pb.UtxoKey, len(record.GetItem()))
+	newRecord.Item = make([]*pb.UtxoKey, 0, len(record.GetItem()))
 	for _, item := range record.GetItem() {
 		tmp := &pb.UtxoKey{
 			RefTxid: item.GetRefTxid(),
@@ -257,7 +257,7 @@ func ContractStatusListToXchain(contractStatusList []*protos.ContractStatus) ([]
 		return nil, nil
 	}
 
-	tmpList := make([]*pb.ContractStatus, len(contractStatusList))
+	tmpList := make([]*pb.ContractStatus, 0, len(contractStatusList))
 	for _, cs := range contractStatusList {
 		tmp := ContractStatusToXchain(cs)
 		if tmp == nil {
@@ -301,7 +301,7 @@ func BalanceDetailsToXchain(details []*xldgpb.BalanceDetailInfo) ([]*pb.TokenFro
 		return nil, nil
 	}
 
-	tmpList := make([]*pb.TokenFrozenDetail, len(details))
+	tmpList := make([]*pb.TokenFrozenDetail, 0, len(details))
 	for _, detail := range details {
 		tmp := BalanceDetailToXchain(detail)
 		if tmp == nil {
