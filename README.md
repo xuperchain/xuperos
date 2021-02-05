@@ -4,6 +4,12 @@ XuperOS是XuperChain技术体系开源项目之一，是构建超级链开放网
 
 # 快速使用
 
+## 编译环境
+
+- Linux or Mac OS
+- Go 1.12.x or later
+- Git
+
 ## 部署测试网络
 
 XuperOS提供了测试网络部署工具，初次尝试可以通过该工具便捷部署测试网络。
