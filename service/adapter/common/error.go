@@ -32,7 +32,7 @@ var StdErrToXchainErrMap = map[int]pb.XChainErrorEnum{
 	ecom.ErrTxNotExist.Code:               pb.XChainErrorEnum_TX_NOT_FOUND_ERROR,
 	ecom.ErrTxNotEnough.Code:              pb.XChainErrorEnum_NOT_ENOUGH_UTXO_ERROR,
 	ecom.ErrSubmitTxFailed.Code:           pb.XChainErrorEnum_UNKNOW_ERROR,
-	ecom.ErrBlockNotExist.Code:            pb.XChainErrorEnum_VALIDATE_ERROR,
+	ecom.ErrBlockNotExist.Code:            pb.XChainErrorEnum_BLOCK_EXIST_ERROR,
 	ecom.ErrProcBlockFailed.Code:          pb.XChainErrorEnum_UNKNOW_ERROR,
 	ecom.ErrNewNetEventFailed.Code:        pb.XChainErrorEnum_UNKNOW_ERROR,
 	ecom.ErrNewNetworkFailed.Code:         pb.XChainErrorEnum_UNKNOW_ERROR,

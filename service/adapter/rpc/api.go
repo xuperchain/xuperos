@@ -58,7 +58,7 @@ func (t *RpcServ) PreExec(gctx context.Context, req *pb.InvokeRPCRequest) (*pb.I
 	rctx := sctx.ValueReqCtx(gctx)
 
 	// 校验参数
-	if req == nil || req.GetBcname() == "" || len(req.GetRequests()) < 1 {
+	if req == nil || req.GetBcname() == "" {
 		rctx.GetLog().Warn("param error,some param unset")
 		return resp, ecom.ErrParameter
 	}

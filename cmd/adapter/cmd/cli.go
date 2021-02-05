@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -304,6 +305,13 @@ func (c *Cli) tansferSupportAccount(ctx context.Context, client pb.XchainClient,
 	}
 	txStatus.Txid = txStatus.Tx.Txid
 
+	if opt.Debug {
+		ttx := FromPBTx(txStatus.Tx)
+		out, _ := json.MarshalIndent(ttx, "", "  ")
+		fmt.Println(string(out))
+		return hex.EncodeToString(txStatus.GetTxid()), nil
+	}
+
 	// 提交
 	reply, err := client.PostTx(ctx, txStatus)
 	if err != nil {
@@ -354,7 +362,7 @@ func assembleTxSupportAccount(ctx context.Context, client pb.XchainClient, opt *
 	}
 	// 组装input 和 剩余output
 	txInputs, deltaTxOutput, err := assembleTxInputsSupportAccount(ctx, client, opt, totalNeed, initAddr,
-		initScrkey, initPubkey, cryptoClient)
+		initPubkey, initScrkey, cryptoClient)
 	if err != nil {
 		return nil, err
 	}

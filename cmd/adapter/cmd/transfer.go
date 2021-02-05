@@ -43,6 +43,7 @@ type TransferOptions struct {
 	// 支持账户转账
 	From        string
 	AccountPath string
+	Debug 		bool
 }
 
 // TransferCommand transfer cmd
@@ -59,6 +60,7 @@ type TransferCommand struct {
 	// 支持账户转账
 	from        string
 	accountPath string
+	debug 		bool
 }
 
 // NewTransferCommand new transfer cmd
@@ -86,6 +88,7 @@ func (t *TransferCommand) addFlags() {
 	t.cmd.Flags().Int32Var(&t.version, "txversion", utxo.TxVersion, "tx version")
 	t.cmd.Flags().StringVar(&t.from, "from", "", "account name")
 	t.cmd.Flags().StringVar(&t.accountPath, "accountPath", "", "key path of account")
+	t.cmd.Flags().BoolVar(&t.debug, "debug", false, "debug print tx instead of posting")
 }
 
 func readKeys(file string) (string, error) {
@@ -146,6 +149,7 @@ func (t *TransferCommand) transfer(ctx context.Context) error {
 		Version:        t.version,
 		From:           t.from,
 		AccountPath:    t.accountPath,
+		Debug: 			t.debug,
 	}
 
 	txid, err := t.cli.Transfer(ctx, &opt)

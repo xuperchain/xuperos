@@ -95,7 +95,7 @@ func ConvertInvokeReq(reqs []*pb.InvokeRequest) ([]*protos.InvokeRequest, error)
 		return nil, nil
 	}
 
-	newReqs := make([]*protos.InvokeRequest, len(reqs))
+	newReqs := make([]*protos.InvokeRequest, 0, len(reqs))
 	for _, req := range reqs {
 		buf, err := proto.Marshal(req)
 		if err != nil {
