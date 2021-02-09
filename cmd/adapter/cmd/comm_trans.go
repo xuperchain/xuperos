@@ -727,9 +727,10 @@ func (c *CommTrans) GenPreExeWithSelectUtxoRes(ctx context.Context) (
 	if c.ModuleName != "" {
 		if c.ModuleName == "xkernel" {
 			preExeReqs = append(preExeReqs, &pb.InvokeRequest{
-				ModuleName: c.ModuleName,
-				MethodName: c.MethodName,
-				Args:       c.Args,
+				ModuleName:   c.ModuleName,
+				ContractName: c.ContractName,
+				MethodName:   c.MethodName,
+				Args:         c.Args,
 			})
 		} else {
 			invokeReq := &pb.InvokeRequest{
