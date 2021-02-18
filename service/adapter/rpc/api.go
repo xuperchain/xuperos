@@ -312,6 +312,12 @@ func (t *RpcServ) QueryACL(gctx context.Context, req *pb.AclStatus) (*pb.AclStat
 		rctx.GetLog().Warn("query acl failed", "err", err)
 		return resp, err
 	}
+
+	if aclRes == nil {
+		resp.Confirmed = false
+		return resp, nil
+	}
+
 	xchainAcl := acom.AclToXchain(aclRes)
 	if xchainAcl == nil {
 		rctx.GetLog().Warn("convert acl failed")
