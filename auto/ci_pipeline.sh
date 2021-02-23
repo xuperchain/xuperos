@@ -52,6 +52,12 @@ function account() {
   xchain-cli transfer --to XC1111111111111111@xuper --amount 10000001 || exit
   balance=$(xchain-cli account balance XC1111111111111111@xuper)
   info "account XC1111111111111111@xuper balance $balance"
+
+  ## 合约账户：desc 文件
+  xchain-cli account new --desc $WorkRoot/data/desc/NewAccount.json --fee 1000 || exit
+  xchain-cli transfer --to XC2222222222222222@xuper --amount 10000002 || exit
+  balance=$(xchain-cli account balance XC2222222222222222@xuper)
+  info "account XC2222222222222222@xuper balance $balance"
 }
 
 # contract

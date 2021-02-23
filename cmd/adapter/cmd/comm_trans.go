@@ -206,7 +206,7 @@ func (c *CommTrans) ReadPreExeReq(buf []byte) (*pb.InvokeRequest, error) {
 	params := new(invokeRequestWraper)
 	err := json.Unmarshal(buf, params)
 	if err != nil {
-		return nil, nil
+	    return nil, fmt.Errorf("unmarshal desc error: %v", err)
 	}
 
 	if params.InvokeRequest.ModuleName == "" {
