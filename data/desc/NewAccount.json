@@ -3,7 +3,7 @@
   "contract_name": "$acl",
   "method_name": "NewAccount",
   "args" : {
-    "account_name": "22222222222222222",
+    "account_name": "2222222222222222",
     "acl": "{\"pm\": {\"rule\": 1,\"acceptValue\": 1.0},\"aksWeight\": {\"TeyyPLpp9L7QAcxHangtcHTu7HUZ6iydY\": 1}}"
   }
 }
