@@ -30,6 +30,10 @@ import (
 	"github.com/xuperchain/xuperos/service/adapter/common"
 )
 
+const (
+    defaultDesc = "Maybe common transfer transaction"
+)
+
 // CommTrans base method
 // a. generate tx
 // b. sign it for default single and send it
@@ -196,14 +200,18 @@ func (c *CommTrans) GetInvokeRequestFromDesc() (*pb.InvokeRequest, error) {
 // GetDesc 解析desc字段，主要是针对合约
 func (c *CommTrans) GetDesc() ([]byte, error) {
 	if c.Descfile == "" {
-		return []byte("Maybe common transfer transaction"), nil
+		return []byte(defaultDesc), nil
 	}
 	return ioutil.ReadFile(c.Descfile)
 }
 
 // ReadPreExeReq 从desc中填充出发起合约调用的结构体
 func (c *CommTrans) ReadPreExeReq(buf []byte) (*pb.InvokeRequest, error) {
-	params := new(invokeRequestWraper)
+    if len(buf) == 0 || string(buf) == defaultDesc {
+        return nil, nil
+    }
+
+    params := new(invokeRequestWraper)
 	err := json.Unmarshal(buf, params)
 	if err != nil {
 	    return nil, fmt.Errorf("unmarshal desc error: %v", err)
