@@ -196,6 +196,14 @@ service Xchain {
     };
   }
 
+  // GetConsensusChains query consensus status
+  rpc GetConsensusChains(ConsensusStatRequest) returns (ConsensusStatus) {
+    option (google.api.http) = {
+      post : "/v1/get_consensusstatus"
+      body : "*"
+    };
+  }
+
   // GetNetURL return net url
   rpc GetNetURL(CommonIn) returns (RawUrl) {}
 
@@ -580,6 +588,24 @@ message SystemsStatus {
 message SystemsStatusReply {
   Header header = 1;
   SystemsStatus systems_status = 2;
+}
+
+message ConsensusStatRequest {
+  Header header = 1;
+  string bcname = 2;
+}
+
+// Consensus status
+message ConsensusStatus {
+  Header header = 1;
+  // version
+  string version = 2;
+  // consensus name
+  string consensus_name = 3;
+  // consensus start height
+  string start_height = 4;
+  // consensus validators info
+  string validators_info = 5;
 }
 
 // RawUrl return the node's  connect url
