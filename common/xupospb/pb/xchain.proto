@@ -197,7 +197,7 @@ service Xchain {
   }
 
   // GetConsensusChains query consensus status
-  rpc GetConsensusChains(ConsensusStatRequest) returns (ConsensusStatus) {
+  rpc GetConsensusStatus(ConsensusStatRequest) returns (ConsensusStatus) {
     option (google.api.http) = {
       post : "/v1/get_consensusstatus"
       body : "*"
