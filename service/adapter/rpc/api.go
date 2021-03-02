@@ -842,6 +842,20 @@ func (t *RpcServ) GetAddressContracts(gctx context.Context, req *pb.AddressContr
 	return resp, nil
 }
 
+func (t *RpcServ) GetConsensusStatus(gctx context.Context, req *pb.ConsensusStatRequest) (*pb.ConsensusStatus, error) {
+	// 默认响应
+	resp := &pb.ConsensusStatus{}
+	// 获取请求上下文，对内传递rctx
+	rctx := sctx.ValueReqCtx(gctx)
+
+	if req == nil || req.GetBcname() == "" {
+		rctx.GetLog().Warn("param error,some param unset")
+		return resp, ecom.ErrParameter
+	}
+
+	return resp, ecom.ErrForbidden
+}
+
 // DposCandidates get all candidates of the tdpos consensus
 func (t *RpcServ) DposCandidates(gctx context.Context, req *pb.DposCandidatesRequest) (*pb.DposCandidatesResponse, error) {
 	// 默认响应

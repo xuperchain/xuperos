@@ -124,6 +124,10 @@ func (t *ChainHandle) QueryChainStatus() (*xpb.ChainStatus, error) {
 	return reader.NewChainReader(t.chain.Context(), t.genXctx()).GetChainStatus()
 }
 
+func (t *ChainHandle) QueryConsensusStatus() (*xpb.ConsensusStatus, error) {
+	return reader.NewChainReader(t.chain.Context(), t.genXctx()).GetConsensusStatus()
+}
+
 func (t *ChainHandle) IsTrunkTipBlock(blockId []byte) (bool, error) {
 	return reader.NewChainReader(t.chain.Context(), t.genXctx()).IsTrunkTipBlock(blockId)
 }
