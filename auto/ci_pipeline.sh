@@ -91,6 +91,23 @@ function contract() {
   xchain-cli account contracts --address $(cat data/keys/address)
 }
 
+# 内置合约
+function builtin() {
+      # reserved_contracts
+  info "contract reserved unified_check"
+  xchain-cli wasm deploy $WorkPath/build/unified_check --cname unified_check \
+            --account XC1111111111111111@xuper \
+            --runtime c -a '{"creator": "TeyyPLpp9L7QAcxHangtcHTu7HUZ6iydY"}' --fee 100 || exit
+  xchain-cli wasm invoke unified_check --method register_aks \
+            -a '{"aks":"SmJG3rH2ZzYQ9ojxhbRCPwFiE9y6pD1Co,iYjtLcW6SVCiousAb5DFKWtWroahhEj4u"}' --fee 100 || exit
+
+  # forbidden_contract
+  info "contract forbidden"
+  xchain-cli wasm deploy $WorkPath/build/forbidden --cname forbidden \
+            --account XC1111111111111111@xuper \
+            --runtime c -a '{"creator": "TeyyPLpp9L7QAcxHangtcHTu7HUZ6iydY"}' --fee 100 || exit
+}
+
 function acl() {
   # acl addr
   mkdir -p data/acl
@@ -159,6 +176,7 @@ function main() {
 
   info "test contract"
   contract
+  builtin
 
   info "test acl"
   acl
