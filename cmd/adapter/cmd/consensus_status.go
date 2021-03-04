@@ -2,8 +2,12 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/xuperchain/xupercore/lib/utils"
+	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
 // 本文件封装了和共识模块有关的client调用接口, 具体格式为:
@@ -33,15 +37,27 @@ func NewConsensusStatusCommand(cli *Cli) *cobra.Command {
 }
 
 func (c *ConsensusStatusCommand) getStatus(ctx context.Context) error {
-	/*
-		client := c.cli.XchainClient()
-		req := &pb.CommonIn{
-			Header: &pb.Header{
-				Logid: utils.GenLogId(),
-			},
-			Bcname: c.cli.RootOptions.Name,
-		}
-		_, err := client.GetSystemStatus()
-	*/
+	client := c.cli.XchainClient()
+	req := &pb.ConsensusStatRequest{
+		Header: &pb.Header{
+			Logid: utils.GenLogId(),
+		},
+		Bcname: c.cli.RootOptions.Name,
+	}
+	statusPb, err := client.GetConsensusStatus(ctx, req)
+	if err != nil {
+		return err
+	}
+	status := &pb.ConsensusStatus{
+		Version:        statusPb.Version,
+		ConsensusName:  statusPb.ConsensusName,
+		StartHeight:    statusPb.StartHeight,
+		ValidatorsInfo: statusPb.ValidatorsInfo,
+	}
+	resp, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(resp))
 	return nil
 }

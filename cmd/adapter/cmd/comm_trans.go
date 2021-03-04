@@ -31,7 +31,7 @@ import (
 )
 
 const (
-    defaultDesc = "Maybe common transfer transaction"
+	defaultDesc = "Maybe common transfer transaction"
 )
 
 // CommTrans base method
@@ -88,10 +88,10 @@ func (c *CommTrans) GenPreExeRes(ctx context.Context) (
 	if c.ModuleName != "" {
 		if c.ModuleName == "xkernel" {
 			preExeReqs = append(preExeReqs, &pb.InvokeRequest{
-				ModuleName: c.ModuleName,
+				ModuleName:   c.ModuleName,
 				ContractName: c.ContractName,
-				MethodName: c.MethodName,
-				Args:       c.Args,
+				MethodName:   c.MethodName,
+				Args:         c.Args,
 			})
 		} else {
 			invokeReq := &pb.InvokeRequest{
@@ -207,14 +207,14 @@ func (c *CommTrans) GetDesc() ([]byte, error) {
 
 // ReadPreExeReq 从desc中填充出发起合约调用的结构体
 func (c *CommTrans) ReadPreExeReq(buf []byte) (*pb.InvokeRequest, error) {
-    if len(buf) == 0 || string(buf) == defaultDesc {
-        return nil, nil
-    }
+	if len(buf) == 0 || string(buf) == defaultDesc {
+		return nil, nil
+	}
 
-    params := new(invokeRequestWraper)
+	params := new(invokeRequestWraper)
 	err := json.Unmarshal(buf, params)
 	if err != nil {
-	    return nil, fmt.Errorf("unmarshal desc error: %v", err)
+		return nil, fmt.Errorf("unmarshal desc error: %v", err)
 	}
 
 	if params.InvokeRequest.ModuleName == "" {

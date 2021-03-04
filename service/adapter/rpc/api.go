@@ -852,8 +852,22 @@ func (t *RpcServ) GetConsensusStatus(gctx context.Context, req *pb.ConsensusStat
 		rctx.GetLog().Warn("param error,some param unset")
 		return resp, ecom.ErrParameter
 	}
+	handle, err := models.NewChainHandle(req.GetBcname(), rctx)
+	if err != nil {
+		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
+		return resp, ecom.ErrForbidden
+	}
 
-	return resp, ecom.ErrForbidden
+	status, err := handle.QueryConsensusStatus()
+	if err != nil {
+		rctx.GetLog().Warn("get chain status error", "err", err)
+		return resp, ecom.ErrForbidden
+	}
+	resp.ConsensusName = status.ConsensusName
+	resp.Version = status.Version
+	resp.StartHeight = status.StartHeight
+	resp.ValidatorsInfo = status.ValidatorsInfo
+	return resp, nil
 }
 
 // DposCandidates get all candidates of the tdpos consensus
