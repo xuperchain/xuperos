@@ -4,12 +4,19 @@ cd `dirname $0`/../
 
 HOMEDIR=`pwd`
 OUTDIR="$HOMEDIR/output"
+XVMDIR="$HOMEDIR/xvm"
 
 # make output dir
 if [ ! -d "$OUTDIR" ];then
     mkdir $OUTDIR
 fi
 rm -rf "$OUTDIR/*"
+
+# check xvm
+if [ ! -d "$XVMDIR" ];then
+    echo "Please first execute: make xvm"
+    exit 1
+fi
 
 function buildpkg() {
     output=$1
@@ -51,5 +58,6 @@ cp -r "$HOMEDIR/conf" "$OUTDIR"
 cp "$HOMEDIR/auto/control.sh" "$OUTDIR"
 mkdir -p "$OUTDIR/data"
 cp -r "$HOMEDIR/data/genesis" "$OUTDIR/data"
+cp "$XVMDIR/wasm2c" "$OUTDIR/bin"
 
 echo "compile done!"

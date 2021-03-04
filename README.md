@@ -7,8 +7,8 @@ XuperOS是XuperChain技术体系开源项目之一，是构建超级链开放网
 ## 编译环境
 
 - Linux or Mac OS
-- Go 1.12.x or later
-- Git
+- Go 1.13
+- git、make、gcc、wget、unzip
 
 ## 部署测试网络
 
@@ -20,7 +20,8 @@ git clone https://github.com/xuperchain/xuperos.git
 // 进入工程目录
 cd xuperos
 // 编译工程
-make all
+make xvm
+make compile
 // 部署测试网络
 make testnet
 // 分别启动三个节点（确保端口未被占用）
