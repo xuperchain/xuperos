@@ -20,8 +20,7 @@ git clone https://github.com/xuperchain/xuperos.git
 // 进入工程目录
 cd xuperos
 // 编译工程
-make xvm
-make compile
+make all
 // 部署测试网络
 make testnet
 // 分别启动三个节点（确保端口未被占用）

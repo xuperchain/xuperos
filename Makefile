@@ -14,7 +14,7 @@ export PATH := $(OUTDIR)/bin:$(XVMDIR):$(PATH)
 all: clean compile
 
 # make compile, go build
-compile: xchain
+compile: xvm xchain
 xchain:
 	bash $(HOMEDIR)/auto/build.sh
 
