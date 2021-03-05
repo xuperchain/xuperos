@@ -116,7 +116,7 @@ function acl() {
   info "acl account"
   echo "XC1111111111111111@xuper/$(cat $TestNet/node1/data/keys/address)" > data/acl/addrs
   xchain-cli acl query --account XC1111111111111111@xuper
-  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetAccountACL.json --fee 1
+  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetAccountAcl.json --fee 1
   xchain-cli multisig sign --output sign.out
   xchain-cli multisig send sign.out sign.out --tx tx.out
   sleep 2s
@@ -125,7 +125,7 @@ function acl() {
   # 设置合约方法acl
   info "acl contract method"
   echo "XC1111111111111111@xuper/$(cat $TestNet/node2/data/keys/address)" >> data/acl/addrs
-  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetMethodACL.json --fee 1
+  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetMethodAcl.json --fee 1
   xchain-cli multisig sign --keys $TestNet/node1/data/keys --output sign1.out
   xchain-cli multisig sign --keys $TestNet/node2/data/keys --output sign2.out
   xchain-cli multisig send sign1.out,sign2.out sign1.out,sign2.out --tx tx.out
