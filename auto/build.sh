@@ -4,7 +4,7 @@ cd `dirname $0`/../
 
 HOMEDIR=`pwd`
 OUTDIR="$HOMEDIR/output"
-XVMDIR="$HOMEDIR/xvm"
+XVMDIR="$HOMEDIR/.compile_cache/xvm"
 
 # make output dir
 if [ ! -d "$OUTDIR" ];then
@@ -13,8 +13,8 @@ fi
 rm -rf "$OUTDIR/*"
 
 # check xvm
-if [ ! -d "$XVMDIR" ];then
-    echo "Please first execute: make xvm"
+if [ ! -f "$XVMDIR/wasm2c" ];then
+    echo "please first execute: make xvm"
     exit 1
 fi
 

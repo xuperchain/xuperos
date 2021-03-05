@@ -1,7 +1,8 @@
 # init project PATH
 HOMEDIR := $(shell pwd)
 OUTDIR  := $(HOMEDIR)/output
-XVMDIR  := $(HOMEDIR)/xvm
+COMPILECACHEDIR := $(HOMEDIR)/.compile_cache
+XVMDIR  := $(COMPILECACHEDIR)/xvm
 TESTNETDIR := $(HOMEDIR)/testnet
 
 # init command params
@@ -28,13 +29,13 @@ unit:
 	go test -coverprofile=coverage.txt -covermode=atomic ./...
 
 # make clean
-cleanall: clean cleantest cleanxvm
+cleanall: clean cleantest cleancache
 clean:
 	rm -rf $(OUTDIR)
 cleantest:
 	rm -rf $(TESTNETDIR)
-cleanxvm:
-	rm -rf $(XVMDIR)
+cleancache:
+	rm -rf $(COMPILECACHEDIR)
 
 # deploy test network
 testnet:

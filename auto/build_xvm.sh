@@ -3,23 +3,27 @@
 cd `dirname $0`/../
 
 HOMEDIR=`pwd`
-OUTDIR="$HOMEDIR/xvm"
+OUTDIR="$HOMEDIR/.compile_cache/xvm"
 XVMPKG="https://github.com/xuperchain/xvm/archive/main.zip"
 
-# make output dir
-rm -rf $OUTDIR
-mkdir -p $OUTDIR
-
 function buildxvm() {
-    wget -O "$OUTDIR/xvm.zip" "$XVMPKG" --no-check-certificate
+    # clean dir
+    rm -rf $OUTDIR
+    mkdir -p $OUTDIR
+
+    # download pkg
+    echo "start downloading xvm pkg..."
+    curl -s -L -k -o "$OUTDIR/xvm.zip" "$XVMPKG"
     if [ $? != 0 ]; then
         echo "download xvm failed"
         exit 1
     fi
 
+    # unzip
     unzip -d "$OUTDIR" "$OUTDIR/xvm.zip"
     mv "$OUTDIR/xvm-main" "$OUTDIR/xvm"
 
+    # make
     make -C "$OUTDIR/xvm/compile/wabt" -j 4
     if [ $? != 0 ]; then
         echo "complie xvm failed"
@@ -30,7 +34,7 @@ function buildxvm() {
 }
 
 # build xvm
-if [ ! -d "$OUTDIR/wasm2c" ]; then
+if [ ! -f "$OUTDIR/wasm2c" ]; then
     buildxvm
 fi
 
