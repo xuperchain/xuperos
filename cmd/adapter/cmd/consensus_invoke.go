@@ -103,18 +103,24 @@ func (c *ConsensusInvokeCommand) invoke(ctx context.Context) error {
 
 func (c *ConsensusInvokeCommand) tdposInvoke(ctx context.Context, ct *CommTrans) error {
 	// tdpos必须有input json数据
-	if c.descfile == "" {
+	if c.descfile == "" && c.method != "getTdposInfos" {
+		// trick处理
 		return fmt.Errorf("tdpos needs desc file.\n")
 	}
-	desc, err := ioutil.ReadFile(c.descfile)
-	if err != nil {
-		return err
-	}
+	var err error
 	args := make(map[string]interface{})
-	err = json.Unmarshal(desc, &args)
-	if err != nil {
-		return err
+	if c.method != "getTdposInfos" {
+		desc, err := ioutil.ReadFile(c.descfile)
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(desc, &args)
+		if err != nil {
+			return err
+		}
 	}
+
 	ct.Args, err = convertToXuper3Args(args)
 	if err != nil {
 		return err
@@ -123,21 +129,12 @@ func (c *ConsensusInvokeCommand) tdposInvoke(ctx context.Context, ct *CommTrans)
 	if err != nil {
 		return err
 	}
-	if c.account != "" {
-		ct.From = c.account
-		ct.Args["account_name"] = []byte(c.account)
-		simpleACL := `
-        {
-            "pm": {
-                "rule": 1,
-                "acceptValue": 1.0
-            },
-            "aksWeight": {
-                "` + ct.To + `": 1.0
-            }
-        }
-        `
-		ct.Args["acl"] = []byte(simpleACL)
+	if c.account == "" {
+		initAk, _ := readAddress(c.cli.RootOptions.Keys)
+		c.account = initAk
+	}
+	if c.isMulti { // 走多签
+		return ct.GenerateMultisigGenRawTx(ctx)
 	}
 	return ct.Transfer(ctx)
 }
