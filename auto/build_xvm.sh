@@ -4,7 +4,7 @@ cd `dirname $0`/../
 
 HOMEDIR=`pwd`
 OUTDIR="$HOMEDIR/.compile_cache/xvm"
-XVMPKG="https://github.com/xuperchain/xvm/archive/main.zip"
+XVMPKG="https://codeload.github.com/xuperchain/xvm/zip/main"
 
 function buildxvm() {
     # clean dir

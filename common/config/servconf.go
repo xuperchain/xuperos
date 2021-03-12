@@ -19,6 +19,7 @@ type ServConf struct {
 	EnableTls          bool     `yaml:"enableTls,omitempty"`
 	EnableAdapter      bool     `yaml:"enableAdapter,omitempty"`
 	EnableEndorser     bool     `yaml:"enableEndorser,omitempty"`
+	EnableEvent        bool     `yaml:"enableEvent,omitempty"`
 	EndorserHosts      []string `yaml:"endorserHosts,omitempty"`
 	AdapterAllowCROS   bool     `yaml:"adapterAllowCROS,omitempty"`
 	MaxMsgSize         int      `yaml:"maxMsgSize,omitempty"`
@@ -27,6 +28,7 @@ type ServConf struct {
 	InitWindowSize     int32    `yaml:"initWindowSize,omitempty"`
 	InitConnWindowSize int32    `yaml:"initConnWindowSize,omitempty"`
 	TlsServerName      string   `yaml:"tlsServerName,omitempty"`
+	EventAddrMaxConn   int      `yaml:"eventAddrMaxConn,omitempty"`
 }
 
 func LoadServConf(cfgFile string) (*ServConf, error) {
@@ -50,6 +52,7 @@ func GetDefServConf() *ServConf {
 		EnableTls:          false,
 		EnableAdapter:      false,
 		EnableEndorser:     false,
+		EnableEvent:        true,
 		EndorserHosts:      []string{},
 		AdapterAllowCROS:   false,
 		MaxMsgSize:         128 << 20,
@@ -58,6 +61,7 @@ func GetDefServConf() *ServConf {
 		InitWindowSize:     128 << 10,
 		InitConnWindowSize: 64 << 10,
 		TlsServerName:      "localhost",
+		EventAddrMaxConn:   5,
 	}
 }
 
