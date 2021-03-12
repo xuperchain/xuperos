@@ -91,6 +91,23 @@ function contract() {
   xchain-cli account contracts --address $(cat data/keys/address)
 }
 
+# 内置合约
+function builtin() {
+      # reserved_contracts
+  info "contract reserved unified_check"
+  xchain-cli wasm deploy $WorkPath/build/unified_check --cname unified_check \
+            --account XC1111111111111111@xuper \
+            --runtime c -a '{"creator": "TeyyPLpp9L7QAcxHangtcHTu7HUZ6iydY"}' --fee 100 || exit
+  xchain-cli wasm invoke unified_check --method register_aks \
+            -a '{"aks":"SmJG3rH2ZzYQ9ojxhbRCPwFiE9y6pD1Co,iYjtLcW6SVCiousAb5DFKWtWroahhEj4u"}' --fee 100 || exit
+
+  # forbidden_contract
+  info "contract forbidden"
+  xchain-cli wasm deploy $WorkPath/build/forbidden --cname forbidden \
+            --account XC1111111111111111@xuper \
+            --runtime c -a '{"creator": "TeyyPLpp9L7QAcxHangtcHTu7HUZ6iydY"}' --fee 100 || exit
+}
+
 function acl() {
   # acl addr
   mkdir -p data/acl
@@ -99,7 +116,7 @@ function acl() {
   info "acl account"
   echo "XC1111111111111111@xuper/$(cat $TestNet/node1/data/keys/address)" > data/acl/addrs
   xchain-cli acl query --account XC1111111111111111@xuper
-  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetAccountACL.json --fee 1
+  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetAccountAcl.json --fee 1
   xchain-cli multisig sign --output sign.out
   xchain-cli multisig send sign.out sign.out --tx tx.out
   sleep 2s
@@ -108,7 +125,7 @@ function acl() {
   # 设置合约方法acl
   info "acl contract method"
   echo "XC1111111111111111@xuper/$(cat $TestNet/node2/data/keys/address)" >> data/acl/addrs
-  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetMethodACL.json --fee 1
+  xchain-cli multisig gen --desc $WorkRoot/data/desc/SetMethodAcl.json --fee 1
   xchain-cli multisig sign --keys $TestNet/node1/data/keys --output sign1.out
   xchain-cli multisig sign --keys $TestNet/node2/data/keys --output sign2.out
   xchain-cli multisig send sign1.out,sign2.out sign1.out,sign2.out --tx tx.out
@@ -159,6 +176,7 @@ function main() {
 
   info "test contract"
   contract
+  builtin
 
   info "test acl"
   acl

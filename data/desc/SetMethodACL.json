@@ -1,7 +1,7 @@
 {
   "module_name": "xkernel",
   "contract_name": "$acl",
-  "method_name": "SetMethodACL",
+  "method_name": "SetMethodAcl",
   "args" : {
     "contract_name": "counter.wasm",
     "method_name": "increase",
