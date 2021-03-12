@@ -116,6 +116,10 @@ func (t *RpcServMG) runRpcServ() error {
 	t.servHD = grpc.NewServer(rpcOptions...)
 	pb.RegisterXchainServer(t.servHD, t.rpcServ)
 
+	// event involved rpc
+	eventService := newEventService(t.scfg, t.engine)
+	pb.RegisterEventServiceServer(t.servHD, eventService)
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", t.scfg.AdapterRpcPort))
 	if err != nil {
 		t.log.Error("failed to listen", "err", err)
