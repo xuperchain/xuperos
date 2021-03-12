@@ -1,5 +1,7 @@
 #!/bin/sh
 
+cd `dirname $0`
+
 Pwd=`pwd`
 Usage="sh ./control.sh {stop|start|restart|forcestop}"
 Self="control.sh"
