@@ -1,4 +1,4 @@
-:# Rpc service listen port
+# Rpc service listen port
 rpcPort: 36201
 # AdapterRpcPort
 adapterRpcPort: 36301
