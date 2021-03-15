@@ -350,3 +350,12 @@ func UtxoMetaToXchain(meta *xldgpb.UtxoMeta) *pb.UtxoMeta {
 
 	return &tmp
 }
+
+func ConvertEventSubType(typ pb.SubscribeType) protos.SubscribeType {
+	switch typ {
+	case pb.SubscribeType_BLOCK:
+		return protos.SubscribeType_BLOCK
+	}
+
+	return protos.SubscribeType_BLOCK
+}
