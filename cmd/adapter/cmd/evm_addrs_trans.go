@@ -9,7 +9,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	//"github.com/hyperledger/burrow/crypto"
+
+	"github.com/hyperledger/burrow/crypto"
+	"github.com/xuperchain/xupercore/bcs/contract/evm"
 )
 
 // EVMAddrTransCommand address translation between EVM and xchain
@@ -48,8 +50,7 @@ func (c *EVMAddrTransCommand) trans(ctx context.Context) error {
 		return fmt.Errorf("wrong transType, must be x2e or e2x")
 	}
 
-	//todo evm
-	/*var addr, addrType string
+	var addr, addrType string
 	var err error
 	switch c.transType {
 	case "x2e":
@@ -71,7 +72,7 @@ func (c *EVMAddrTransCommand) trans(ctx context.Context) error {
 		return fmt.Errorf("wrong transType, must be x2e or e2x")
 	}
 
-	fmt.Printf("result, %s\t%s\n", addr, addrType)*/
+	fmt.Printf("result, %s\t%s\n", addr, addrType)
 
 	return nil
 }

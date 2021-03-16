@@ -21,10 +21,14 @@ func (t *RpcServ) EndorserCall(gctx context.Context, req *pb.EndorserRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	resp, err = endc.EndorserCall(gctx, req)
+	res, err := endc.EndorserCall(gctx, req)
 	if err != nil {
 		return nil, err
 	}
+	resp.EndorserAddress = res.EndorserAddress
+	resp.ResponseName = res.ResponseName
+	resp.ResponseData = res.ResponseData
+	resp.EndorserSign = res.EndorserSign
 	rctx.GetLog().SetInfoField("bc_name", req.GetBcName())
 	rctx.GetLog().SetInfoField("request_name", req.GetBcName())
 	rctx.GetLog().SetInfoField("txid", utils.F(req.GetFee().Txid))

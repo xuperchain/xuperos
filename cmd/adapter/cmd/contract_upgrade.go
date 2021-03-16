@@ -59,7 +59,7 @@ func (c *ContractUpgradeCommand) upgrade(ctx context.Context, codepath string) e
 		FrozenHeight: 0,
 		Version:      utxo.TxVersion,
 		ModuleName:   "xkernel",
-        ContractName: "$contract",
+		ContractName: "$contract",
 		MethodName:   "upgradeContract",
 		Args:         make(map[string][]byte),
 		MultiAddrs:   c.multiAddrs,
