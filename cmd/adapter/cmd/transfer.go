@@ -43,7 +43,7 @@ type TransferOptions struct {
 	// 支持账户转账
 	From        string
 	AccountPath string
-	Debug 		bool
+	Debug       bool
 }
 
 // TransferCommand transfer cmd
@@ -60,7 +60,7 @@ type TransferCommand struct {
 	// 支持账户转账
 	from        string
 	accountPath string
-	debug 		bool
+	debug       bool
 }
 
 // NewTransferCommand new transfer cmd
@@ -149,7 +149,7 @@ func (t *TransferCommand) transfer(ctx context.Context) error {
 		Version:        t.version,
 		From:           t.from,
 		AccountPath:    t.accountPath,
-		Debug: 			t.debug,
+		Debug:          t.debug,
 	}
 
 	txid, err := t.cli.Transfer(ctx, &opt)

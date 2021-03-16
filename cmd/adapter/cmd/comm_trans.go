@@ -20,10 +20,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 
-	"github.com/hyperledger/burrow/execution/evm/abi"
 	"github.com/xuperchain/xupercore/bcs/ledger/xledger/state/utxo"
 	"github.com/xuperchain/xupercore/kernel/contract"
-	"github.com/xuperchain/xupercore/kernel/contract/bridge"
 	crypto_client "github.com/xuperchain/xupercore/lib/crypto/client"
 	"github.com/xuperchain/xupercore/lib/utils"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
@@ -59,9 +57,6 @@ type CommTrans struct {
 	Keys         string
 	XchainClient pb.XchainClient
 	CryptoType   string
-
-	// evm
-	AbiCode []byte
 
 	// DebugTx if enabled, tx will be printed instead of being posted
 	DebugTx bool
@@ -149,36 +144,9 @@ func (c *CommTrans) GenPreExeRes(ctx context.Context) (
 		if res.Status >= contract.StatusErrorThreshold {
 			return nil, nil, fmt.Errorf("contract error status:%d message:%s", res.Status, res.Message)
 		}
-		if c.ModuleName != string(bridge.TypeEvm) {
-			fmt.Printf("contract response: %s\n", string(res.Body))
-		} else {
-			// print contract response of evm
-			err := printRespWithAbiForEVM(string(c.AbiCode), c.MethodName, res.Body)
-			if err != nil {
-				fmt.Printf("contract response: %s\n", string(res.Body))
-			}
-		}
+		fmt.Printf("contract response: %s\n", string(res.Body))
 	}
 	return preExeRPCRes, preExeRPCRes.Response.Requests, nil
-}
-
-func printRespWithAbiForEVM(abiData, funcName string, resp []byte) error {
-	Variables, err := abi.DecodeFunctionReturn(abiData, funcName, resp)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("contract response:")
-	for i := range Variables {
-		if len(Variables[i].Value) == 32 {
-			// evm bytes32 for solidity
-			fmt.Println("key,value:", Variables[i].Name, hex.EncodeToString([]byte(Variables[i].Value)))
-		} else {
-			fmt.Println("key,value:", Variables[i].Name, Variables[i].Value)
-		}
-	}
-
-	return nil
 }
 
 // GetInvokeRequestFromDesc get invokerequest from desc file
@@ -207,14 +175,10 @@ func (c *CommTrans) GetDesc() ([]byte, error) {
 
 // ReadPreExeReq 从desc中填充出发起合约调用的结构体
 func (c *CommTrans) ReadPreExeReq(buf []byte) (*pb.InvokeRequest, error) {
-	if len(buf) == 0 || string(buf) == defaultDesc {
-		return nil, nil
-	}
-
 	params := new(invokeRequestWraper)
 	err := json.Unmarshal(buf, params)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal desc error: %v", err)
+		return nil, nil
 	}
 
 	if params.InvokeRequest.ModuleName == "" {

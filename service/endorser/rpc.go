@@ -11,13 +11,13 @@ import (
 	"time"
 
 	sconf "github.com/xuperchain/xuperos/common/config"
-	"github.com/xuperchain/xuperos/common/xupospb"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
 
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
 	"github.com/xuperchain/xupercore/lib/logs"
 	"github.com/xuperchain/xupercore/lib/utils"
 	sctx "github.com/xuperchain/xuperos/common/context"
+	acom "github.com/xuperchain/xuperos/service/adapter/common"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
@@ -42,7 +42,7 @@ func NewRpcServ(engine ecom.Engine, scf *sconf.ServConf, log logs.Logger) *RpcSe
 // UnaryInterceptor provides a hook to intercept the execution of a unary RPC on the server.
 func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo,
-		handler grpc.UnaryHandler) (resp interface{}, err error) {
+		handler grpc.UnaryHandler) (respRes interface{}, err error) {
 
 		// panic recover
 		defer func() {
@@ -53,7 +53,7 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 
 		// set request header
 		type HeaderInterface interface {
-			GetHeader() *xupospb.ReqHeader
+			GetHeader() *pb.Header
 		}
 		if req.(HeaderInterface).GetHeader() == nil {
 			header := reflect.ValueOf(req).Elem().FieldByName("Header")
@@ -61,8 +61,8 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 				header.Set(reflect.ValueOf(t.defReqHeader()))
 			}
 		}
-		if req.(HeaderInterface).GetHeader().GetLogId() == "" {
-			req.(HeaderInterface).GetHeader().LogId = utils.GenLogId()
+		if req.(HeaderInterface).GetHeader().GetLogid() == "" {
+			req.(HeaderInterface).GetHeader().Logid = utils.GenLogId()
 		}
 		reqHeader := req.(HeaderInterface).GetHeader()
 
@@ -72,23 +72,22 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 
 		// output access log
 		logFields := make([]interface{}, 0)
-		logFields = append(logFields, "from", reqHeader.GetSelfName(),
+		logFields = append(logFields, "from", reqHeader.GetFromNode(),
 			"client_ip", reqCtx.GetClientIp(), "rpc_method", info.FullMethod)
 		reqCtx.GetLog().Trace("access request", logFields...)
 
 		// handle request
-		// 根据err自动设置响应错误码，err需要是定义的标准err，否则会响应为未知错误
+		// 根据err自动设置响应错误码，err需要是ecom.Error类型的标准err，否则会响应为未知错误
 		stdErr := ecom.ErrSuccess
-		respRes, err := handler(ctx, req)
+		respRes, err = handler(ctx, req)
 		if err != nil {
 			stdErr = ecom.CastError(err)
 		}
 		// 根据错误统一设置header，对外统一响应err=nil，通过Header.ErrCode判断
-		respHeader := &xupospb.RespHeader{
-			LogId:   reqHeader.GetLogId(),
-			ErrCode: int64(stdErr.Code),
-			ErrMsg:  stdErr.Msg,
-			TraceId: t.genTraceId(),
+		respHeader := &pb.Header{
+			Logid:    reqHeader.GetLogid(),
+			FromNode: t.genTraceId(),
+			Error:    t.convertErr(stdErr),
 		}
 		// 通过反射设置header到response
 		header := reflect.ValueOf(respRes).Elem().FieldByName("Header")
@@ -102,18 +101,19 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 			"err_msg", stdErr.Msg, "cost_time", reqCtx.GetTimer().Print())
 		reqCtx.GetLog().Info("request done", logFields...)
 
-		return respRes, nil
+		return respRes, err
 	}
 }
 
-func (t *RpcServ) defReqHeader() *xupospb.ReqHeader {
-	return &xupospb.ReqHeader{
-		LogId:    utils.GenLogId(),
-		SelfName: "unknow",
+func (t *RpcServ) defReqHeader() *pb.Header {
+	return &pb.Header{
+		Logid:    utils.GenLogId(),
+		FromNode: "",
+		Error:    pb.XChainErrorEnum_UNKNOW_ERROR,
 	}
 }
 
-func (t *RpcServ) createReqCtx(gctx context.Context, reqHeader *xupospb.ReqHeader) (sctx.ReqCtx, error) {
+func (t *RpcServ) createReqCtx(gctx context.Context, reqHeader *pb.Header) (sctx.ReqCtx, error) {
 	// 获取客户端ip
 	clientIp, err := t.getClietIP(gctx)
 	if err != nil {
@@ -122,7 +122,7 @@ func (t *RpcServ) createReqCtx(gctx context.Context, reqHeader *xupospb.ReqHeade
 	}
 
 	// 创建请求上下文
-	rctx, err := sctx.NewReqCtx(t.engine, reqHeader.GetLogId(), clientIp)
+	rctx, err := sctx.NewReqCtx(t.engine, reqHeader.GetLogid(), clientIp)
 	if err != nil {
 		t.log.Error("access proc failed because create request context failed", "error", err)
 		return nil, fmt.Errorf("create request context failed")
@@ -147,7 +147,20 @@ func (t *RpcServ) getClietIP(gctx context.Context) (string, error) {
 
 // 生成包含机器host和请求时间的AES加密字符串，方便问题定位
 func (t *RpcServ) genTraceId() string {
-	return "127.0.0.1"
+	return utils.GetHostName()
+}
+
+// 转化错误类型为原接口错误
+func (t *RpcServ) convertErr(stdErr *ecom.Error) pb.XChainErrorEnum {
+	if stdErr == nil {
+		return pb.XChainErrorEnum_UNKNOW_ERROR
+	}
+
+	if errCode, ok := acom.StdErrToXchainErrMap[stdErr.Code]; ok {
+		return errCode
+	}
+
+	return pb.XChainErrorEnum_UNKNOW_ERROR
 }
 
 func (t *RpcServ) getHost() string {
