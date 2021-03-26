@@ -44,7 +44,7 @@ function account() {
   ## 账户
   xchain-cli account newkeys --output data/alice || exit
   xchain-cli transfer --to "$(cat data/alice/address)" --amount 10000000 || exit
-  balance=$(xchain-cli account balance --keys data/alicea)
+  balance=$(xchain-cli account balance --keys data/alice)
   info "account $(cat data/alice/address) balance $balance"
 
   ## 合约账户
