@@ -19,11 +19,11 @@ func (t *RpcServ) EndorserCall(gctx context.Context, req *pb.EndorserRequest) (*
 	}
 	endc, err := t.getClient(t.getHost())
 	if err != nil {
-		return nil, err
+		return resp, err
 	}
 	res, err := endc.EndorserCall(gctx, req)
 	if err != nil {
-		return nil, err
+		return resp, err
 	}
 	resp.EndorserAddress = res.EndorserAddress
 	resp.ResponseName = res.ResponseName
