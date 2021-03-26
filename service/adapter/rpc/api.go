@@ -6,6 +6,7 @@ import (
 
 	sctx "github.com/xuperchain/xupercore/example/xchain/common/context"
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
+	"github.com/xuperchain/xupercore/kernel/network/p2p"
 	"github.com/xuperchain/xupercore/lib/utils"
 	"github.com/xuperchain/xupercore/protos"
 	"github.com/xuperchain/xuperos/models"
@@ -44,7 +45,15 @@ func (t *RpcServ) PostTx(gctx context.Context, req *pb.TxStatus) (*pb.CommonRepl
 		rctx.GetLog().Warn("new chain handle failed", "err", err.Error())
 		return resp, err
 	}
+
 	err = handle.SubmitTx(tx)
+	if err == nil {
+		msg := p2p.NewMessage(protos.XuperMessage_POSTTX, tx,
+			p2p.WithBCName(req.GetBcname()),
+			p2p.WithLogId(rctx.GetLog().GetLogId()),
+		)
+		go t.engine.Context().Net.SendMessage(rctx, msg)
+	}
 	rctx.GetLog().SetInfoField("bc_name", req.GetBcname())
 	rctx.GetLog().SetInfoField("txid", utils.F(req.GetTxid()))
 	return resp, err
