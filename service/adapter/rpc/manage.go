@@ -120,6 +120,11 @@ func (t *RpcServMG) runRpcServ() error {
 	eventService := newEventService(t.scfg, t.engine)
 	pb.RegisterEventServiceServer(t.servHD, eventService)
 
+	if t.scfg.EnableEndorser {
+		endorserService := newEndorserService(t.scfg, t.engine)
+		pb.RegisterXendorserServer(t.servHD, endorserService)
+	}
+
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", t.scfg.AdapterRpcPort))
 	if err != nil {
 		t.log.Error("failed to listen", "err", err)
