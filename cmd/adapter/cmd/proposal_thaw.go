@@ -41,8 +41,8 @@ func NewProposalThawCommand(cli *Cli) *cobra.Command {
 }
 
 func (c *ProposalThawCommand) addFlags() {
-	c.cmd.Flags().StringVar(&c.proposalID, "proposal_id", "", "proposal id.")
-	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to create an account.")
+	c.cmd.Flags().StringVarP(&c.proposalID, "pid", "p", "", "proposal id.")
+	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to thaw a proposal.")
 }
 
 func (c *ProposalThawCommand) thawProposal(ctx context.Context) error {

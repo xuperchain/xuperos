@@ -41,9 +41,9 @@ func NewProposalVoteCommand(cli *Cli) *cobra.Command {
 }
 
 func (c *ProposalVoteCommand) addFlags() {
-	c.cmd.Flags().StringVar(&c.proposalID, "proposal_id", "", "proposal id.")
+	c.cmd.Flags().StringVarP(&c.proposalID, "pid", "p", "", "proposal id.")
 	c.cmd.Flags().StringVar(&c.amount, "amount", "", "amount.")
-	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to create an account.")
+	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to vote a proposal.")
 }
 
 func (c *ProposalVoteCommand) voteProposal(ctx context.Context) error {

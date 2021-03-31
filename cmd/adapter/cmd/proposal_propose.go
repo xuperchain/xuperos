@@ -40,7 +40,7 @@ func NewProposalProposeCommand(cli *Cli) *cobra.Command {
 }
 
 func (c *ProposalProposeCommand) addFlags() {
-	c.cmd.Flags().StringVar(&c.proposal, "proposal", "", "proposal.")
+	c.cmd.Flags().StringVarP(&c.proposal, "proposal", "p", "", "proposal.")
 	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to propose a proposal.")
 }
 

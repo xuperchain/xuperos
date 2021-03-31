@@ -45,7 +45,7 @@ func NewProposalQueryCommand(cli *Cli) *cobra.Command {
 }
 
 func (c *ProposalQueryCommand) addFlags() {
-	c.cmd.Flags().StringVarP(&c.proposalID, "proposal_id", "p", "1", "proposal id.")
+	c.cmd.Flags().StringVarP(&c.proposalID, "pid", "p", "1", "proposal id.")
 }
 
 func (c *ProposalQueryCommand) example() string {

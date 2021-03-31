@@ -17,9 +17,9 @@ type GovernTransferCommand struct {
 	cli *Cli
 	cmd *cobra.Command
 
-	receiver string
-	amount   string
-	fee      string
+	to     string
+	amount string
+	fee    string
 }
 
 // NewGovernTransferCommand new transfer govern token cmd
@@ -40,9 +40,9 @@ func NewGovernTransferCommand(cli *Cli) *cobra.Command {
 }
 
 func (c *GovernTransferCommand) addFlags() {
-	c.cmd.Flags().StringVar(&c.receiver, "receiver", "", "govern token receiver.")
+	c.cmd.Flags().StringVar(&c.to, "to", "", "govern token receiver.")
 	c.cmd.Flags().StringVar(&c.amount, "amount", "0", "govern token amount.")
-	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to create an account.")
+	c.cmd.Flags().StringVar(&c.fee, "fee", "0", "The fee to transfer govern token.")
 }
 
 func (c *GovernTransferCommand) transferGovernToken(ctx context.Context) error {
@@ -70,10 +70,10 @@ func (c *GovernTransferCommand) transferGovernToken(ctx context.Context) error {
 		return err
 	}
 
-	if c.receiver != "" {
+	if c.to != "" {
 		ct.ModuleName = "xkernel"
 		ct.ContractName = "$govern_token"
-		ct.Args["receiver"] = []byte(c.receiver)
+		ct.Args["to"] = []byte(c.to)
 		ct.Args["amount"] = []byte(c.amount)
 	}
 
