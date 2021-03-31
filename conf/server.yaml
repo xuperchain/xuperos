@@ -11,8 +11,6 @@ adapterGWPort: 36601
 
 # enableEndorser switch for endorser service
 enableEndorser: true
-# endorserRpcPort endorser service listen port
-endorserRpcPort: 36401
 # endorserHosts
 endorserHosts:
   - "127.0.0.1:8848"
