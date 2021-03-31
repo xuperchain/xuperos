@@ -428,6 +428,7 @@ github.com/libp2p/go-libp2p-routing-helpers v0.2.3/go.mod h1:795bh+9YeoFl99rMASo
 github.com/libp2p/go-libp2p-secio v0.1.0/go.mod h1:tMJo2w7h3+wN4pgU2LSYeiKPrfqBgkOsdiKK77hE7c8=
 github.com/libp2p/go-libp2p-secio v0.2.0/go.mod h1:2JdZepB8J5V9mBp79BmwsaPQhRPNN2NrnB2lKQcdy6g=
 github.com/libp2p/go-libp2p-secio v0.2.1/go.mod h1:cWtZpILJqkqrSkiYcDBh5lA3wbT2Q+hz3rJQq3iftD8=
+github.com/libp2p/go-libp2p-secio v0.2.2 h1:rLLPvShPQAcY6eNurKNZq3eZjPWfU9kXF2eI9jIYdrg=
 github.com/libp2p/go-libp2p-secio v0.2.2/go.mod h1:wP3bS+m5AUnFA+OFO7Er03uO1mncHG0uVwGrwvjYlNY=
 github.com/libp2p/go-libp2p-swarm v0.1.0/go.mod h1:wQVsCdjsuZoc730CgOvh5ox6K8evllckjebkdiY5ta4=
 github.com/libp2p/go-libp2p-swarm v0.2.2/go.mod h1:fvmtQ0T1nErXym1/aa1uJEyN7JzaTNyBcHImCxRpPKU=
@@ -794,6 +795,8 @@ github.com/xuperchain/xupercore v0.0.0-20210312113333-d3be8c6c0c24 h1:BP3zcJRqe/
 github.com/xuperchain/xupercore v0.0.0-20210312113333-d3be8c6c0c24/go.mod h1:AAn+bWtJfonmW9AGqGkGDNGoCVP6qAZc0D4Q89Knt+Y=
 github.com/xuperchain/xupercore v0.0.0-20210326035450-c93d00e63a4c h1:lTnrTZ1jeMRWpDE4YagQNTd3K65bqHiC+q8I5y/sGTQ=
 github.com/xuperchain/xupercore v0.0.0-20210326035450-c93d00e63a4c/go.mod h1:AAn+bWtJfonmW9AGqGkGDNGoCVP6qAZc0D4Q89Knt+Y=
+github.com/xuperchain/xupercore v0.0.0-20210331015833-ec44f0588b72 h1:GHcKlLKqJ4CfpPX4STOuI7+sZho233CaXXt2CrIDeMU=
+github.com/xuperchain/xupercore v0.0.0-20210331015833-ec44f0588b72/go.mod h1:v5Kvim5rpha4A/+BTXwVpFxlk+bHR+3YW1D98bN+ICY=
 github.com/xuperchain/xvm v0.0.0-20210126142521-68fd016c56d7 h1:ARg101vOoX4N+6hbwtud6b0P/bb+7JtrCfVXAHa/xHU=
 github.com/xuperchain/xvm v0.0.0-20210126142521-68fd016c56d7/go.mod h1:XTaJSLDGYlcAPFb5vWH4vVALckO3V5+wa4zl1mpKMjg=
 gitlab.com/NebulousLabs/errors v0.0.0-20171229012116-7ead97ef90b8/go.mod h1:ZkMZ0dpQyWwlENaeZVBiQRjhMEZvk6VTXquzl3FOFP8=
