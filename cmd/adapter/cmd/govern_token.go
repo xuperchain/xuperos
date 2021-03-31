@@ -20,8 +20,9 @@ func NewGovernTokenCommand(cli *Cli) *cobra.Command {
 	c.cli = cli
 	c.cmd = &cobra.Command{
 		Use:   "governToken",
-		Short: "proposal: transfer|query.",
+		Short: "governToken: init|transfer|query.",
 	}
+	c.cmd.AddCommand(NewGovernInitCommand(cli))
 	c.cmd.AddCommand(NewGovernTransferCommand(cli))
 	c.cmd.AddCommand(NewGovernTokenQueryCommand(cli))
 	return c.cmd
