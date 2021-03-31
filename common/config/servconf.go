@@ -13,7 +13,6 @@ type ServConf struct {
 	RpcPort            int      `yaml:"rpcPort,omitempty"`
 	AdapterRpcPort     int      `yaml:"adapterRpcPort,omitempty"`
 	AdapterGWPort      int      `yaml:"adapterGWPort,omitempty"`
-	EndorserRpcPort    int      `yaml:"endorserRpcPort,omitempty"`
 	MetricPort         int      `yaml:"metricPort,omitempty"`
 	EnableMetric       bool     `yaml:"enableMetric,omitempty"`
 	EnableTls          bool     `yaml:"enableTls,omitempty"`
@@ -46,7 +45,6 @@ func GetDefServConf() *ServConf {
 		RpcPort:            38101,
 		AdapterRpcPort:     37101,
 		AdapterGWPort:      37102,
-		EndorserRpcPort:    37103,
 		MetricPort:         38100,
 		EnableMetric:       true,
 		EnableTls:          false,

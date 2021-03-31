@@ -1,6 +1,5 @@
 # rpcPort service listen port for xuperos
 rpcPort: 36201
-# metricPort prometheus listen port
 metricPort: 36801
 
 # enableAdapter switch for xchain service

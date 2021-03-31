@@ -55,12 +55,23 @@ func (c *AccountNewkeysCommand) createAccount() error {
 		return fmt.Errorf("failed to create output dir before create account:%s", err)
 	}
 	c.cryptoType = c.cli.RootOptions.Crypto
+	var err error
 	if c.strength > 0 {
 		// intversion, _ := strconv.ParseInt(xchainversion.Version, 0, 8)
 		// version := uint8(intversion)
-		return c.createMnmAccount(c.strength, c.lang)
+		err = c.createMnmAccount(c.strength, c.lang)
+		if err != nil {
+			os.RemoveAll(c.outputdir)
+			return err
+		}
+		return nil
 	}
-	return c.createSimpleAccount()
+	err = c.createSimpleAccount()
+	if err != nil {
+		os.RemoveAll(c.outputdir)
+		return err
+	}
+	return nil
 }
 
 // create a simple account, without mnemonic
