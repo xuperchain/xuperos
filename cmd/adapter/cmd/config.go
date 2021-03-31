@@ -35,6 +35,7 @@ type ComplianceCheckConfig struct {
 	IsNeedComplianceCheck             bool   `yaml:"isNeedComplianceCheck,omitempty"`
 	IsNeedComplianceCheckFee          bool   `yaml:"isNeedComplianceCheckFee,omitempty"`
 	ComplianceCheckEndorseServiceFee  int    `yaml:"complianceCheckEndorseServiceFee,omitempty"`
+	ComplianceCheckEndorseFeeAddr     string `yaml:"complianceCheckEndorseFeeAddr,omitempty"`
 	ComplianceCheckEndorseServiceAddr string `yaml:"complianceCheckEndorseServiceAddr,omitempty"`
 }
 

@@ -2,8 +2,6 @@
 rpcPort: 36202
 # AdapterRpcPort
 adapterRpcPort: 36302
-# EndorserRpcPort
-endorserRpcPort: 36402
 # AdapterGWPort
 adapterGWPort: 36602
 # MetricPort

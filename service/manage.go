@@ -10,7 +10,6 @@ import (
 	def "github.com/xuperchain/xuperos/common/def"
 	adpgw "github.com/xuperchain/xuperos/service/adapter/gateway"
 	adprpc "github.com/xuperchain/xuperos/service/adapter/rpc"
-	endrpc "github.com/xuperchain/xuperos/service/endorser"
 	"github.com/xuperchain/xuperos/service/rpc"
 )
 
@@ -58,16 +57,6 @@ func NewServMG(scfg *sconf.ServConf, engine engines.BCEngine) (*ServMG, error) {
 		}
 
 		obj.servers = append(obj.servers, adpServ, adpGW)
-	}
-
-	//实例化背书服务
-	if scfg.EnableEndorser {
-		endorserServ, err := endrpc.NewRpcServMG(scfg, engine)
-		if err != nil {
-			return nil, err
-		}
-
-		obj.servers = append(obj.servers, endorserServ)
 	}
 
 	return obj, nil

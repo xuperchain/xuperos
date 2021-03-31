@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/xuperchain/xupercore/bcs/ledger/xledger/state/utxo"
+	"github.com/xuperchain/xupercore/lib/utils"
+	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
 // 本文件封装了和共识模块有关的client调用接口, 具体格式为:
@@ -144,6 +146,20 @@ func (c *ConsensusInvokeCommand) xpoaInvoke(ctx context.Context, ct *CommTrans) 
 		return fmt.Errorf("xpoa needs acl account.\n")
 	}
 	ct.From = c.account
+	// xpoa的account必须严格鉴权, 首先吊起acl访问
+	client := c.cli.XchainClient()
+	aclStatus := &pb.AclStatus{
+		Header: &pb.Header{
+			Logid: utils.GenLogId(),
+		},
+		Bcname:      c.cli.RootOptions.Name,
+		AccountName: c.account,
+	}
+	reply, err := client.QueryACL(ctx, aclStatus)
+	if err != nil {
+		return err
+	}
+
 	// xpoa不一定需要input json，如getValidates读接口
 	if c.descfile != "" {
 		desc, err := ioutil.ReadFile(c.descfile)
@@ -155,12 +171,23 @@ func (c *ConsensusInvokeCommand) xpoaInvoke(ctx context.Context, ct *CommTrans) 
 		if err != nil {
 			return err
 		}
+		// 此时填充acl信息
+		acl := reply.GetAcl()
+		aksB, err := json.Marshal(acl.AksWeight)
+		if err != nil {
+			return fmt.Errorf("xpoa query acl marshal error.\n")
+		}
+		args["aksWeight"] = string(aksB)
+		if acl.Pm == nil {
+			return fmt.Errorf("xpoa query acl error.\n")
+		}
+		args["acceptValue"] = fmt.Sprintf("%f", acl.Pm.AcceptValue)
+		args["rule"] = fmt.Sprintf("%d", acl.Pm.Rule)
 		ct.Args, err = convertToXuper3Args(args)
 		if err != nil {
 			return err
 		}
 	}
-	var err error
 	ct.To, err = readAddress(ct.Keys)
 	if err != nil {
 		return err
