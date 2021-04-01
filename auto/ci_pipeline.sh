@@ -106,6 +106,7 @@ function builtin() {
   xchain-cli wasm deploy $WorkPath/build/forbidden --cname forbidden \
             --account XC1111111111111111@xuper \
             --runtime c -a '{"creator": "TeyyPLpp9L7QAcxHangtcHTu7HUZ6iydY"}' --fee 155679 || exit
+  sleep 3s
 }
 
 function acl() {
@@ -187,4 +188,26 @@ function main() {
   info "test done"
 }
 
-main "$@"
+case X$1 in
+    Xclean)
+        clean
+        ;;
+    Xtestnet)
+        testnet
+        ;;
+    Xaccount)
+        account
+        ;;
+    Xcontract)
+        contract
+        builtin
+        ;;
+    Xacl)
+        acl
+        ;;
+    Xheight)
+        height
+        ;;
+    X*)
+        main "$@"
+esac
