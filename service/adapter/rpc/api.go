@@ -473,7 +473,9 @@ func (t *RpcServ) GetFrozenBalance(gctx context.Context, req *pb.AddressStatus) 
 	}
 
 	for i := 0; i < len(req.Bcs); i++ {
-		tmpTokenDetail := &pb.TokenDetail{}
+		tmpTokenDetail := &pb.TokenDetail{
+			Bcname: req.Bcs[i].Bcname,
+		}
 		handle, err := models.NewChainHandle(req.Bcs[i].Bcname, rctx)
 		if err != nil {
 			tmpTokenDetail.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
@@ -512,7 +514,9 @@ func (t *RpcServ) GetBalanceDetail(gctx context.Context, req *pb.AddressBalanceS
 	}
 
 	for i := 0; i < len(req.Tfds); i++ {
-		tmpFrozenDetails := &pb.TokenFrozenDetails{}
+		tmpFrozenDetails := &pb.TokenFrozenDetails{
+			Bcname: req.Tfds[i].Bcname,
+		}
 		handle, err := models.NewChainHandle(req.Tfds[i].Bcname, rctx)
 		if err != nil {
 			tmpFrozenDetails.Error = pb.XChainErrorEnum_BLOCKCHAIN_NOTEXIST
@@ -535,6 +539,7 @@ func (t *RpcServ) GetBalanceDetail(gctx context.Context, req *pb.AddressBalanceS
 		}
 		resp.Tfds = append(resp.Tfds, tmpFrozenDetails)
 	}
+	resp.Address = req.GetAddress()
 
 	rctx.GetLog().SetInfoField("account", req.GetAddress())
 	return resp, nil
