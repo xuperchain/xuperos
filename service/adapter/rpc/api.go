@@ -415,7 +415,7 @@ func (t *RpcServ) QueryTx(gctx context.Context, req *pb.TxStatus) (*pb.TxStatus,
 	resp.Distance = txInfo.Distance
 
 	rctx.GetLog().SetInfoField("bc_name", req.GetBcname())
-	rctx.GetLog().SetInfoField("account", utils.F(req.GetTxid()))
+	rctx.GetLog().SetInfoField("txid", utils.F(req.GetTxid()))
 	return resp, nil
 }
 
@@ -454,7 +454,7 @@ func (t *RpcServ) GetBalance(gctx context.Context, req *pb.AddressStatus) (*pb.A
 	}
 	resp.Address = req.GetAddress()
 
-	rctx.GetLog().SetInfoField("account", req.GetAddress())
+	rctx.GetLog().SetInfoField("address", req.GetAddress())
 	return resp, nil
 }
 
@@ -495,7 +495,7 @@ func (t *RpcServ) GetFrozenBalance(gctx context.Context, req *pb.AddressStatus) 
 	}
 	resp.Address = req.GetAddress()
 
-	rctx.GetLog().SetInfoField("account", req.GetAddress())
+	rctx.GetLog().SetInfoField("address", req.GetAddress())
 	return resp, nil
 }
 
@@ -541,7 +541,7 @@ func (t *RpcServ) GetBalanceDetail(gctx context.Context, req *pb.AddressBalanceS
 	}
 	resp.Address = req.GetAddress()
 
-	rctx.GetLog().SetInfoField("account", req.GetAddress())
+	rctx.GetLog().SetInfoField("address", req.GetAddress())
 	return resp, nil
 }
 

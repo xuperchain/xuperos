@@ -13,7 +13,6 @@ import (
 	"google.golang.org/grpc"
 
 	sconf "github.com/xuperchain/xuperos/common/config"
-	def "github.com/xuperchain/xuperos/common/def"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
@@ -30,7 +29,7 @@ func NewGateway(scfg *sconf.ServConf) (*Gateway, error) {
 		return nil, fmt.Errorf("param error")
 	}
 
-	log, _ := logs.NewLogger("", def.SubModName)
+	log, _ := logs.NewLogger("", "gateway")
 	obj := &Gateway{
 		scfg:     scfg,
 		log:      log,
@@ -83,7 +82,7 @@ func (t *Gateway) runGateway() error {
 		grpc.WithReadBufferSize(t.scfg.ReadBufSize),
 	}
 
-	rpcEndpoint := fmt.Sprintf(":%d", t.scfg.AdapterGWPort)
+	rpcEndpoint := fmt.Sprintf(":%d", t.scfg.AdapterRpcPort)
 	err := pb.RegisterXchainHandlerFromEndpoint(ctx, mux, rpcEndpoint, opts)
 	if err != nil {
 		return err
