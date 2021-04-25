@@ -100,6 +100,18 @@ func (c *ConsensusInvokeCommand) invoke(ctx context.Context) error {
 		fmt.Printf("consensus type error.\n")
 		return nil
 	}
+	// 所有共识命令统一输入一个当前Tipheight-3
+	bcStatus := &pb.BCStatus{
+		Header: &pb.Header{
+			Logid: utils.GenLogId(),
+		},
+		Bcname: c.cli.RootOptions.Name,
+	}
+	status, err := c.cli.XchainClient().GetBlockChainStatus(ctx, bcStatus)
+	if err != nil {
+		return fmt.Errorf("get chain status error.\n")
+	}
+	ct.Args["height"] = []byte(fmt.Sprintf("%d", status.GetMeta().TrunkHeight-3))
 	return c.consensusRun(invokeMap[c.bucket], ctx, ct)
 }
 
@@ -110,7 +122,9 @@ func (c *ConsensusInvokeCommand) tdposInvoke(ctx context.Context, ct *CommTrans)
 		return fmt.Errorf("tdpos needs desc file.\n")
 	}
 	var err error
-	args := make(map[string]interface{})
+	args := map[string]interface{}{
+		"height": string(ct.Args["height"]),
+	}
 	if c.method != "getTdposInfos" {
 		desc, err := ioutil.ReadFile(c.descfile)
 		if err != nil {
@@ -159,14 +173,15 @@ func (c *ConsensusInvokeCommand) xpoaInvoke(ctx context.Context, ct *CommTrans) 
 	if err != nil {
 		return err
 	}
-
+	args := map[string]interface{}{
+		"height": string(ct.Args["height"]),
+	}
 	// xpoa不一定需要input json，如getValidates读接口
 	if c.descfile != "" {
 		desc, err := ioutil.ReadFile(c.descfile)
 		if err != nil {
 			return err
 		}
-		args := make(map[string]interface{})
 		err = json.Unmarshal(desc, &args)
 		if err != nil {
 			return err
