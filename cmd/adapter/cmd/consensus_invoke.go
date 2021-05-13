@@ -41,6 +41,8 @@ type invokeMethodFunc func(c *ConsensusInvokeCommand, ctx context.Context, ct *C
 
 var invokeMap = map[string]invokeMethodFunc{
 	"tdpos": (*ConsensusInvokeCommand).tdposInvoke,
+	"xpos":  (*ConsensusInvokeCommand).tdposInvoke,
+	"poa":   (*ConsensusInvokeCommand).xpoaInvoke,
 	"xpoa":  (*ConsensusInvokeCommand).xpoaInvoke,
 }
 
