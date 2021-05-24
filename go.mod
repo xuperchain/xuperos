@@ -14,7 +14,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.6.2
 	github.com/xuperchain/crypto v0.0.0-20201028025054-4d560674bcd6
-	github.com/xuperchain/xupercore v0.0.0-20210513073712-e413917029e1
+	github.com/xuperchain/xupercore v0.0.0-20210524075332-3896dfb6780c
 	golang.org/x/mod v0.1.1-0.20191209134235-331c550502dd // indirect
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
