@@ -134,7 +134,7 @@ func (t *RpcServMG) runRpcServ() error {
 		metrics.RegisterMetrics()
 		gpromeus.Register(t.servHD)
 		gpromeus.EnableHandlingTimeHistogram(
-			gpromeus.WithHistogramBuckets([]float64{.001, .025, .05, .1, .25, .5, 1}),
+			gpromeus.WithHistogramBuckets(metrics.DefBuckets),
 		)
 		http.Handle("/metrics", promhttp.Handler())
 		go func() {

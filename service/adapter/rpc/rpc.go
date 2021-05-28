@@ -15,6 +15,7 @@ import (
 	sctx "github.com/xuperchain/xupercore/example/xchain/common/context"
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
 	"github.com/xuperchain/xupercore/lib/logs"
+	"github.com/xuperchain/xupercore/lib/metrics"
 	"github.com/xuperchain/xupercore/lib/utils"
 
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
@@ -78,7 +79,9 @@ func (t *RpcServ) UnaryInterceptor() grpc.UnaryServerInterceptor {
 		// handle request
 		// 根据err自动设置响应错误码，err需要是ecom.Error类型的标准err，否则会响应为未知错误
 		stdErr := ecom.ErrSuccess
+		metrics.ConcurrentRequestGauge.WithLabelValues("grpc").Inc()
 		respRes, err = handler(ctx, req)
+		metrics.ConcurrentRequestGauge.WithLabelValues("grpc").Dec()
 		if err != nil {
 			stdErr = ecom.CastError(err)
 		}

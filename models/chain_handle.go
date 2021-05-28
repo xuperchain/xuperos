@@ -59,11 +59,11 @@ func (t *ChainHandle) QueryTx(txId []byte) (*xpb.TxInfo, error) {
 func (t *ChainHandle) SelectUtxo(account string, need *big.Int, isLock, isExclude bool,
 	pubKey string, sign []byte) (*lpb.UtxoOutput, error) {
 	// 如果需要临时锁定utxo，需要校验权限
-	ok := t.checkSelectUtxoSign(account, pubKey, sign, isLock, need)
-	if !ok {
-		t.reqCtx.GetLog().Warn("select utxo verify sign failed", "account", account, "isLock", isLock)
-		return nil, ecom.ErrUnauthorized
-	}
+	//ok := t.checkSelectUtxoSign(account, pubKey, sign, isLock, need)
+	//if !ok {
+	//	t.reqCtx.GetLog().Warn("select utxo verify sign failed", "account", account, "isLock", isLock)
+	//	return nil, ecom.ErrUnauthorized
+	//}
 
 	return reader.NewUtxoReader(t.chain.Context(), t.genXctx()).SelectUTXO(account, need,
 		isLock, isExclude)
