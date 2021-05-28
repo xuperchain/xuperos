@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"path/filepath"
 	"sync"
 
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	gpromeus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
@@ -20,7 +23,7 @@ import (
 	"github.com/xuperchain/xupercore/kernel/engines/xuperos"
 	ecom "github.com/xuperchain/xupercore/kernel/engines/xuperos/common"
 	"github.com/xuperchain/xupercore/lib/logs"
-
+	"github.com/xuperchain/xupercore/lib/metrics"
 	sconf "github.com/xuperchain/xuperos/common/config"
 	"github.com/xuperchain/xuperos/common/def"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
@@ -93,7 +96,9 @@ func (t *RpcServMG) Exit() {
 func (t *RpcServMG) runRpcServ() error {
 	unaryInterceptors := []grpc.UnaryServerInterceptor{
 		t.rpcServ.UnaryInterceptor(),
-		gpromeus.UnaryServerInterceptor,
+	}
+	if t.scfg.EnableMetric {
+		unaryInterceptors = append(unaryInterceptors, gpromeus.UnaryServerInterceptor)
 	}
 
 	rpcOptions := []grpc.ServerOption{
@@ -123,6 +128,20 @@ func (t *RpcServMG) runRpcServ() error {
 	if t.scfg.EnableEndorser {
 		endorserService := newEndorserService(t.scfg, t.engine)
 		pb.RegisterXendorserServer(t.servHD, endorserService)
+	}
+
+	if t.scfg.EnableMetric {
+		metrics.RegisterMetrics()
+		gpromeus.Register(t.servHD)
+		gpromeus.EnableHandlingTimeHistogram(
+			gpromeus.WithHistogramBuckets(metrics.DefBuckets),
+		)
+		http.Handle("/metrics", promhttp.Handler())
+		go func() {
+			if err := http.ListenAndServe(fmt.Sprintf(":%d", t.scfg.MetricPort), nil); err != nil {
+				t.log.Error("unable to start pprof http server")
+			}
+		}()
 	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", t.scfg.AdapterRpcPort))
