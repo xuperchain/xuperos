@@ -31,6 +31,7 @@ func NewMultisigCommand(cli *Cli) *cobra.Command {
 		Short: "Operate a command with multisign: check|gen|send|sign|get.",
 	}
 	cmd.AddCommand(NewMultisigGenCommand(cli))
+	cmd.AddCommand(NewGetComplianceCheckSignCommand(cli))
 	cmd.AddCommand(NewMultisigCheckCommand(cli))
 	cmd.AddCommand(NewMultisigSignCommand(cli))
 	cmd.AddCommand(NewMultisigSendCommand(cli))
