@@ -196,6 +196,9 @@ func (c *ConsensusInvokeCommand) xpoaInvoke(ctx context.Context, ct *CommTrans) 
 	}
 	// 此时填充acl信息
 	acl := reply.GetAcl()
+	if acl == nil {
+		return fmt.Errorf("xpoa query acl error. pls check.\n")
+	}
 	aksB, err := json.Marshal(acl.AksWeight)
 	if err != nil {
 		return fmt.Errorf("xpoa query acl marshal error.\n")
