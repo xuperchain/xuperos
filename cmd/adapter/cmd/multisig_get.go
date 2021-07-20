@@ -13,7 +13,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/xuperchain/xupercore/bcs/ledger/xledger/state/utxo"
-	"github.com/xuperchain/xupercore/lib/utils"
 	"github.com/xuperchain/xuperos/common/xupospb/pb"
 )
 
