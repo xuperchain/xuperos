@@ -12,6 +12,7 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 output/
 testnet/
+testnet1peers/
 .compile_cache/
 *.out
 coverage.txt
