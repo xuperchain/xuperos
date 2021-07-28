@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -114,10 +116,14 @@ func StartupXchain(envCfgPath string) error {
 
 func loadConf(envCfgPath string) (*econf.EnvConf, *sconf.ServConf, error) {
 	// 加载环境配置
+	fmt.Println(envCfgPath)
 	envConf, err := econf.LoadEnvConf(envCfgPath)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	envBytes,_ := json.Marshal(envConf)
+	fmt.Println("env json:"+string(envBytes))
 
 	// 加载服务配置
 	servConf, err := sconf.LoadServConf(envConf.GenConfFilePath(envConf.ServConf))
