@@ -14,8 +14,7 @@ require (
 	github.com/spf13/viper v1.6.2
 	github.com/xuperchain/crypto v0.0.0-20201028025054-4d560674bcd6
 	github.com/xuperchain/xupercore v0.0.0-20210608021245-b15f81dd9ecf
-	golang.org/x/mod v0.1.1-0.20191209134235-331c550502dd // indirect
-	golang.org/x/net v0.0.0-20200822124328-c89045814202
+	golang.org/x/net v0.7.0
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
 	google.golang.org/grpc v1.32.0
 	google.golang.org/protobuf v1.24.0 // indirect
